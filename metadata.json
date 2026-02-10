@@ -1,0 +1,5 @@
+{
+  "name": "MapSync - Intelligent Data Mapper",
+  "description": "A sophisticated data mapping tool that allows users to visually map custom spreadsheet attributes to standardized data stores like Employee, Assignment, and Payroll with AI-assisted suggestions and advanced transformations.",
+  "requestFramePermissions": []
+}
