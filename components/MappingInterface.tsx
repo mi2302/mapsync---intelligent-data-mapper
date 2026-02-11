@@ -48,7 +48,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'mapping' | 'preview'>('mapping');
   const [draggedHeader, setDraggedHeader] = useState<string | null>(null);
-  
+
   const [sourceSearch, setSourceSearch] = useState('');
   const [targetSearch, setTargetSearch] = useState('');
   const [activeTypeFilter, setActiveTypeFilter] = useState<DataType | 'ALL'>('ALL');
@@ -62,8 +62,8 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
   }, [source.headers, sourceSearch, activeTypeFilter, source.inferredTypes]);
 
   const filteredTargetFields = useMemo(() => {
-    return schema.fields.filter(field => 
-      field.label.toLowerCase().includes(targetSearch.toLowerCase()) || 
+    return schema.fields.filter(field =>
+      field.label.toLowerCase().includes(targetSearch.toLowerCase()) ||
       field.column_name.toLowerCase().includes(targetSearch.toLowerCase())
     );
   }, [schema.fields, targetSearch]);
@@ -77,11 +77,11 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
 
   const handleDrop = (fieldId: string, header: string) => {
     const existing = getMappingForField(fieldId);
-    onUpdateMapping({ 
-      ...existing, 
-      sourceHeader: header, 
+    onUpdateMapping({
+      ...existing,
+      sourceHeader: header,
       semanticReasoning: `Linked to DB Column: [${header}]`,
-      confidence: 1.0 
+      confidence: 1.0
     });
     setDraggedHeader(null);
   };
@@ -128,7 +128,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
         case 'prefix': result = (step.value || '') + String(result || ''); break;
         case 'suffix': result = String(result || '') + (step.value || ''); break;
         case 'replace': result = String(result || '').replace(new RegExp(step.value || '', 'g'), step.replaceWith || ''); break;
-        case 'to_number': 
+        case 'to_number':
           if (result === null || result === undefined || (typeof result === 'string' && result.trim() === '')) {
             result = null;
           } else {
@@ -136,7 +136,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
             result = isNaN(num) ? null : num;
           }
           break;
-        case 'to_date': 
+        case 'to_date':
           if (result === null || result === undefined || (typeof result === 'string' && result.trim() === '')) {
             result = null;
           } else {
@@ -171,13 +171,13 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
     if (sourceInferred === targetRequired) {
       return { status: 'match', label: 'Schema Match', icon: '🏛️', color: 'text-emerald-600 bg-emerald-50 border-emerald-100', reason: 'Verified semantic & structural alignment.' };
     }
-    
+
     if (targetRequired === 'NUMERIC' && sourceInferred === 'VARCHAR') {
-        return { status: 'warn', label: 'Type Cast Required', icon: '⚡', color: 'text-amber-600 bg-amber-50 border-amber-100', reason: 'PostgreSQL casting required for numeric columns.' };
+      return { status: 'warn', label: 'Type Cast Required', icon: '⚡', color: 'text-amber-600 bg-amber-50 border-amber-100', reason: 'PostgreSQL casting required for numeric columns.' };
     }
 
     if (targetRequired === 'TIMESTAMP' && sourceInferred === 'VARCHAR') {
-        return { status: 'warn', label: 'Date Parsing Required', icon: '⏳', color: 'text-cyan-600 bg-cyan-50 border-cyan-100', reason: 'Use the To Date transformation for ISO conversion.' };
+      return { status: 'warn', label: 'Date Parsing Required', icon: '⏳', color: 'text-cyan-600 bg-cyan-50 border-cyan-100', reason: 'Use the To Date transformation for ISO conversion.' };
     }
 
     return { status: 'mismatch', label: 'Inconsistent Types', icon: '❌', color: 'text-rose-600 bg-rose-50 border-rose-100', reason: 'Detected potential data corruption if imported.' };
@@ -206,26 +206,26 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
             <div className="w-80 bg-slate-50/50 border-r border-slate-200 flex flex-col overflow-hidden shrink-0">
               <div className="p-5 border-b border-slate-200 space-y-4 bg-white/50">
                 <div className="flex justify-between items-center">
-                   <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Source Attributes ({filteredSourceHeaders.length})</h3>
-                   <span className="text-[8px] font-bold text-slate-300">TOTAL: {source.headers.length}</span>
+                  <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Source Attributes ({filteredSourceHeaders.length})</h3>
+                  <span className="text-[8px] font-bold text-slate-300">TOTAL: {source.headers.length}</span>
                 </div>
-                
+
                 <div className="relative group">
-                   <input 
-                     type="text" 
-                     placeholder="Search attributes..."
-                     value={sourceSearch}
-                     onChange={(e) => setSourceSearch(e.target.value)}
-                     className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] font-bold outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50 transition-all pl-9"
-                   />
-                   <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                   </svg>
-                   {sourceSearch && (
-                     <button onClick={() => setSourceSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
-                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6" /></svg>
-                     </button>
-                   )}
+                  <input
+                    type="text"
+                    placeholder="Search attributes..."
+                    value={sourceSearch}
+                    onChange={(e) => setSourceSearch(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] font-bold outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50 transition-all pl-9"
+                  />
+                  <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  {sourceSearch && (
+                    <button onClick={() => setSourceSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6" /></svg>
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
@@ -277,19 +277,19 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                   <h3 className="text-xl font-black text-slate-900 tracking-tighter uppercase">Mapping Orchestrator</h3>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Target Entity: {schema.table_name}</p>
                 </div>
-                
+
                 <div className="flex items-center gap-4">
                   <div className="relative group">
-                     <input 
-                       type="text" 
-                       placeholder="Filter target fields..."
-                       value={targetSearch}
-                       onChange={(e) => setTargetSearch(e.target.value)}
-                       className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[9px] font-bold uppercase outline-none focus:border-blue-400 focus:bg-white transition-all pl-9"
-                     />
-                     <svg className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                     </svg>
+                    <input
+                      type="text"
+                      placeholder="Filter target fields..."
+                      value={targetSearch}
+                      onChange={(e) => setTargetSearch(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[9px] font-bold uppercase outline-none focus:border-blue-400 focus:bg-white transition-all pl-9"
+                    />
+                    <svg className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
                   </div>
                   <button
                     onClick={onAutoMap}
@@ -312,8 +312,8 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                         <div className="grid grid-cols-12 gap-8 items-start">
                           <div className="col-span-3">
                             <div className="flex items-center gap-2 mb-1">
-                               <p className="text-[10px] font-black text-slate-900 uppercase">{field.label}</p>
-                               {field.required && <span className="text-rose-500 text-[10px]">*</span>}
+                              <p className="text-[10px] font-black text-slate-900 uppercase">{field.label}</p>
+                              {field.required && <span className="text-rose-500 text-[10px]">*</span>}
                             </div>
                             <code className="text-[8px] block bg-slate-50 px-2 py-1.5 rounded-lg text-slate-400 font-mono mb-3 border border-slate-100/50">{field.column_name}</code>
                             <div className="flex flex-wrap gap-2">
@@ -336,8 +336,8 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                                 <div className="flex flex-col gap-2 w-full px-6">
                                   <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-black text-blue-700 uppercase truncate max-w-[150px]">{mapping.sourceHeader}</span>
-                                    <button 
-                                      onClick={() => removeSourceHeader(field.id)} 
+                                    <button
+                                      onClick={() => removeSourceHeader(field.id)}
                                       className="p-1.5 bg-white rounded-full text-slate-300 hover:text-rose-500 hover:shadow-sm transition-all"
                                     >
                                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth={3} d="M6 18L18 6" /></svg>
@@ -352,10 +352,10 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                                 </div>
                               ) : (
                                 <div className="flex flex-col items-center gap-2 opacity-40">
-                                   <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                                      <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                                   </div>
-                                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Drop Attribute</span>
+                                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+                                    <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                                  </div>
+                                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Drop Attribute</span>
                                 </div>
                               )}
                             </div>
@@ -364,22 +364,22 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                           <div className="col-span-5 space-y-4">
                             <div className="flex justify-between items-center border-b border-slate-50 pb-2">
                               <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
-                                Logic Pipeline 
+                                Logic Pipeline
                                 <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-400">{mapping.transformations.length}</span>
                               </span>
-                              <button 
-                                onClick={() => addTransformation(field.id)} 
+                              <button
+                                onClick={() => addTransformation(field.id)}
                                 className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[8px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all border border-blue-100 shadow-sm"
                               >
                                 New Step +
                               </button>
                             </div>
-                            
+
                             <div className="space-y-3">
                               {mapping.transformations.map((step, idx) => {
                                 const meta = TRANSFORMATION_META[step.type];
                                 const needsValue = ['constant', 'prefix', 'suffix', 'default_if_null', 'replace'].includes(step.type);
-                                
+
                                 return (
                                   <div key={step.id} className={`flex flex-col gap-3 p-4 rounded-[1.5rem] border ${meta.bg} ${meta.border} transition-all shadow-sm hover:shadow-md animate-in slide-in-from-right-2 duration-300`}>
                                     <div className="flex items-center gap-3">
@@ -400,7 +400,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth={3} d="M6 18L18 6" /></svg>
                                       </button>
                                     </div>
-                                    
+
                                     {needsValue && (
                                       <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
                                         <div className="relative group/input">
@@ -415,7 +415,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                                             {step.type === 'replace' ? 'FIND' : 'INPUT'}
                                           </span>
                                         </div>
-                                        
+
                                         {step.type === 'replace' && (
                                           <div className="relative group/input">
                                             <input
@@ -449,9 +449,9 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                   })
                 ) : (
                   <div className="flex flex-col items-center justify-center py-40 bg-white rounded-[3rem] border border-dashed border-slate-200">
-                     <span className="text-4xl mb-4 grayscale opacity-40">🔍</span>
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No target fields match your search</p>
-                     <button onClick={() => setTargetSearch('')} className="mt-4 text-blue-600 text-[10px] font-black uppercase hover:underline">Clear Filter</button>
+                    <span className="text-4xl mb-4 grayscale opacity-40">🔍</span>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No target fields match your search</p>
+                    <button onClick={() => setTargetSearch('')} className="mt-4 text-blue-600 text-[10px] font-black uppercase hover:underline">Clear Filter</button>
                   </div>
                 )}
               </div>
@@ -466,8 +466,8 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                     {schema.fields.map(f => (
                       <th key={f.id} className="p-5 text-[9px] font-black uppercase tracking-widest border-r border-white/10 last:border-0 min-w-[150px]">
                         <div className="flex items-center gap-2">
-                           <span className="opacity-50">{TYPE_ICONS[f.type]}</span>
-                           <span>{f.label}</span>
+                          <span className="opacity-50">{TYPE_ICONS[f.type]}</span>
+                          <span>{f.label}</span>
                         </div>
                         <span className="block opacity-30 text-[7px] mt-1 font-mono">{f.column_name}</span>
                       </th>

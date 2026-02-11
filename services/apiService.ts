@@ -32,56 +32,63 @@ export const apiService = {
     }
   },
 
-  // Save Mapping Configuration (Updated to support backend if implemented later)
+  // Save Mapping Configuration
   saveMappingConfiguration: async (
     config: Omit<SavedConfiguration, 'id' | 'createdAt'> & { id?: string }
   ): Promise<{ success: boolean; config: SavedConfiguration }> => {
-    // For now, keep local storage logic but log intention
-    console.log('Saving config (mock):', config);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        let saved: SavedConfiguration[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        let finalConfig: SavedConfiguration;
+    try {
+      // Backend expects: registryId, registryName, moduleName, objectMappings
+      const payload = {
+        registryId: config.id || Math.floor(Math.random() * 1000000), // Generate numeric ID if new
+        registryName: config.name,
+        moduleName: 'Workforce Management', // Derived from groupId usually
+        objectMappings: config.objectMappings
+      };
 
-        if (config.id) {
-          const index = saved.findIndex(c => c.id === config.id);
-          if (index !== -1) {
-            finalConfig = { ...saved[index], ...config, id: config.id, createdAt: saved[index].createdAt };
-            saved[index] = finalConfig;
-          } else {
-            finalConfig = { ...config, id: `cfg_${Math.random().toString(36).substr(2, 9)}`, createdAt: new Date().toISOString() } as SavedConfiguration;
-            saved.push(finalConfig);
-          }
-        } else {
-          const existingByNameIndex = saved.findIndex(c => c.name === config.name && c.groupId === config.groupId);
-          if (existingByNameIndex !== -1) {
-            finalConfig = { ...saved[existingByNameIndex], ...config, createdAt: saved[existingByNameIndex].createdAt } as SavedConfiguration;
-            saved[existingByNameIndex] = finalConfig;
-          } else {
-            finalConfig = { ...config, id: `cfg_${Math.random().toString(36).substr(2, 9)}`, createdAt: new Date().toISOString() } as SavedConfiguration;
-            saved.push(finalConfig);
-          }
-        }
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
-        resolve({ success: true, config: finalConfig });
-      }, 800);
-    });
+      const response = await fetch(`${API_URL}/registry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message);
+
+      return { success: true, config: { ...config, id: String(payload.registryId), createdAt: new Date().toISOString() } };
+    } catch (error) {
+      console.error('Save Config Failed:', error);
+      return { success: false, config: config as SavedConfiguration };
+    }
   },
 
   fetchConfigsByGroup: async (groupId: string): Promise<SavedConfiguration[]> => {
-    return new Promise((resolve) => {
-      const saved: SavedConfiguration[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      resolve(saved.filter(c => c.groupId === groupId));
-    });
+    try {
+      const response = await fetch(`${API_URL}/registry`);
+      if (!response.ok) return [];
+      const configs = await response.json();
+      // Filter by group on client side since backend returns all for now
+      // This maps the backend structure back to frontend 'SavedConfiguration'
+      return configs.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        groupId: 'workforce', // Hardcoded for this demo scope as requested
+        objectMappings: c.objectMappings || {},
+        createdAt: new Date().toISOString()
+      }));
+    } catch (error) {
+      console.error('Fetch Configs Failed:', error);
+      return [];
+    }
   },
 
   deleteConfiguration: async (configId: string): Promise<boolean> => {
-    return new Promise((resolve) => {
-      const saved: SavedConfiguration[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      const filtered = saved.filter(c => c.id !== configId);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-      resolve(true);
-    });
+    try {
+      const response = await fetch(`${API_URL}/registry/${configId}`, { method: 'DELETE' });
+      return response.ok;
+    } catch (error) {
+      console.error('Delete Failed:', error);
+      return false;
+    }
   },
 
   syncData: async (tableName: string, columns: string[], rows: any[]): Promise<{ success: boolean; rowsAffected?: number; message?: string }> => {

@@ -331,7 +331,19 @@ const App: React.FC = () => {
                         });
                         if (selectedSchema) {
                           const groupId = getGroupIdForSchema(selectedSchema.id);
-                          if (groupId) runAutoMapGroup(result.headers, groupId);
+                          // Clear existing mappings for this group to ensure no stale auto-mapping or previous state
+                          if (groupId) {
+                            const group = dataGroups.find(g => g.id === groupId);
+                            if (group) {
+                              const resetMappings: Record<string, FieldMapping[]> = {};
+                              group.objects.forEach(sId => {
+                                const s = SCHEMAS[sId];
+                                if (s) resetMappings[sId] = s.fields.map(f => ({ targetFieldId: f.id, transformations: [] }));
+                              });
+                              setAllMappings(prev => ({ ...prev, ...resetMappings }));
+                            }
+                          }
+                          // if (groupId) runAutoMapGroup(result.headers, groupId);
                         }
                         showToast(`Loaded ${result.rows.length} rows from ${file.name}`);
                       } catch (err: any) {
@@ -359,7 +371,19 @@ const App: React.FC = () => {
                     setSourceData({ headers, inferredTypes, rows, fileName: 'demo_data.csv' });
                     if (selectedSchema) {
                       const groupId = getGroupIdForSchema(selectedSchema.id);
-                      if (groupId) runAutoMapGroup(headers, groupId);
+                      // Clear existing mappings for this group
+                      if (groupId) {
+                        const group = dataGroups.find(g => g.id === groupId);
+                        if (group) {
+                          const resetMappings: Record<string, FieldMapping[]> = {};
+                          group.objects.forEach(sId => {
+                            const s = SCHEMAS[sId];
+                            if (s) resetMappings[sId] = s.fields.map(f => ({ targetFieldId: f.id, transformations: [] }));
+                          });
+                          setAllMappings(prev => ({ ...prev, ...resetMappings }));
+                        }
+                      }
+                      // if (groupId) runAutoMapGroup(headers, groupId);
                     }
                   }} className="w-full py-4 bg-slate-50 text-slate-800 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-100 border border-slate-200 transition-all">Use Demo Payload</button>
                 </div>
@@ -367,6 +391,7 @@ const App: React.FC = () => {
                 <div className="p-4 bg-slate-900 rounded-2xl text-white">
                   <p className="text-[8px] font-black uppercase opacity-50 mb-1">{sourceData.fileName}</p>
                   <p className="text-lg font-black">{sourceData.rows.length} Records</p>
+                  <p className="text-lg font-black">{sourceData.headers.length} Columns</p>
                   <button onClick={() => setSourceData(null)} className="w-full mt-4 py-2 bg-white/10 hover:bg-rose-500 rounded-xl text-[8px] font-black uppercase transition-all">Unstage</button>
                 </div>
               )}
