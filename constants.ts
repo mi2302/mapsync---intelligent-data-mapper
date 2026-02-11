@@ -27,7 +27,7 @@ export const SCHEMAS: Record<SchemaType, SchemaDefinition> = {
     id: SchemaType.EMPLOYEE_MASTER,
     name: 'Employee Master',
     icon: '👤',
-    table_name: 'hr_employee_master',
+    table_name: 'msai_hr_employee_master',
     fields: [
       { id: 'fld_1', column_name: 'emp_id', label: 'Employee ID', type: 'VARCHAR', required: true, description: 'Primary key for employee' },
       { id: 'fld_2', column_name: 'first_name', label: 'First Name', type: 'VARCHAR', required: true, description: 'Legal first name' },
@@ -40,7 +40,7 @@ export const SCHEMAS: Record<SchemaType, SchemaDefinition> = {
     id: SchemaType.ASSIGNMENT,
     name: 'Assignment Records',
     icon: '📋',
-    table_name: 'hr_assignments',
+    table_name: 'msai_hr_assignments',
     fields: [
       { id: 'fld_6', column_name: 'assignment_id', label: 'Assignment ID', type: 'VARCHAR', required: true, description: 'Task unique identifier' },
       { id: 'fld_7', column_name: 'emp_ref', label: 'Employee Ref', type: 'VARCHAR', required: true, description: 'Foreign key to employee' },
@@ -117,3 +117,20 @@ export const SAMPLE_CSV_DATA = `EmployeeNumber,FName,LName,Contact,Dept,DateJoin
 E001,John,Doe,john@example.com,Engineering,2023-01-15,Yes
 E002,Jane,Smith,jane@example.com,Marketing,2022-11-01,Yes
 E003,Bob,Johnson,bob@example.com,Sales,2023-05-20,No`;
+
+export const SAMPLE_DATA_BY_SCHEMA: Record<string, string> = {
+  [SchemaType.EMPLOYEE_MASTER]: `EmployeeID,FirstName,LastName,Email,HireDate,DepartmentCode,BadgeNumber,OfficeLocation
+E1001,Alice,Wonder,alice@company.com,2024-01-15,ENG,B-001,New York
+E1002,Bob,Builder,bob@company.com,2023-11-20,OPS,B-042,London
+E1003,Charlie,Chocolate,charlie@company.com,2024-02-01,MKT,B-105,Paris`,
+
+  [SchemaType.ASSIGNMENT]: `AssignmentID,EmployeeRef,ProjectCode,StartDate,IsRemote,Shift,PriorityLevel
+A-2024-01,E1001,PRJ-ALPHA,2024-02-01,true,Day,High
+A-2024-02,E1002,PRJ-BETA,2024-02-15,false,Night,Medium
+A-2024-03,E1003,PRJ-GAMMA,2024-03-01,true,Day,Low`,
+
+  [SchemaType.PAYROLL]: `PayRunID,GrossAmount,PaymentDate,BonusAmount,TaxCode,Currency,ApprovalStatus
+PR-2024-JAN,5000.00,2024-01-31,500.00,T01,USD,Approved
+PR-2024-FEB,5200.00,2024-02-29,0.00,T01,GBP,Pending
+PR-2024-MAR,4800.00,2024-03-31,200.00,T02,EUR,Draft`
+};

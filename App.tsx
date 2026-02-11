@@ -4,11 +4,12 @@ import { Layout } from './components/Layout';
 import { MappingInterface } from './components/MappingInterface';
 import { Dashboard } from './components/Dashboard';
 import { Toast } from './components/Toast';
-import { SAMPLE_CSV_DATA } from './constants';
+import { SAMPLE_CSV_DATA, SAMPLE_DATA_BY_SCHEMA, SCHEMAS } from './constants';
 import { SchemaType, SourceData, FieldMapping, SchemaDefinition, DataType, DataGroup, SavedConfiguration } from './types';
 import { suggestMappings } from './services/geminiService';
 import { apiService } from './services/apiService';
 import { exportToExcel } from './utils/exportUtils';
+import { parseFile } from './utils/fileParser';
 
 const inferType = (values: any[]): DataType => {
   const cleanValues = values.filter(v => v !== undefined && v !== null && v !== '');
@@ -28,16 +29,16 @@ const App: React.FC = () => {
   const [selectedSchema, setSelectedSchema] = useState<SchemaDefinition | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [sourceData, setSourceData] = useState<SourceData | null>(null);
-  
+
   // Mapping state
   const [allMappings, setAllMappings] = useState<Record<string, FieldMapping[]>>({});
   const [activeConfigId, setActiveConfigId] = useState<string | null>(null);
   const [isModified, setIsModified] = useState(false);
-  
+
   const [isAutoMapping, setIsAutoMapping] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
-  
+
   const [configName, setConfigName] = useState('');
   const [allSavedConfigs, setAllSavedConfigs] = useState<SavedConfiguration[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -46,9 +47,45 @@ const App: React.FC = () => {
     return dataGroups.find(g => g.objects.includes(schemaId))?.id || null;
   };
 
+  // Helper to standardise string for matching
+  const standardize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const runAutoMapGroup = (headers: string[], groupId: string) => {
+    const group = dataGroups.find(g => g.id === groupId);
+    if (!group) return;
+
+    const newMappingsMap: Record<string, FieldMapping[]> = {};
+    let mappedCount = 0;
+
+    group.objects.forEach(schemaId => {
+      const schema = SCHEMAS[schemaId];
+      if (!schema) return;
+
+      const newMappings = schema.fields.map(field => {
+        const fieldStd = standardize(field.label);
+        const colStd = standardize(field.column_name);
+        const match = headers.find(h => {
+          const hStd = standardize(h);
+          return hStd === fieldStd || hStd === colStd || hStd.includes(fieldStd) || fieldStd.includes(hStd);
+        });
+        if (match) mappedCount++;
+        return {
+          targetFieldId: field.id,
+          sourceHeader: match || undefined,
+          transformations: []
+        };
+      });
+      newMappingsMap[schemaId] = newMappings;
+    });
+
+    setAllMappings(prev => ({ ...prev, ...newMappingsMap }));
+    setIsModified(true);
+    showToast(`Auto-mapped ${mappedCount} fields across ${group.objects.length} tables.`);
+  };
+
   const refreshAllConfigs = async () => {
     const all: SavedConfiguration[] = [];
-    for(const group of dataGroups) {
+    for (const group of dataGroups) {
       const configs = await apiService.fetchConfigsByGroup(group.id);
       all.push(...configs);
     }
@@ -60,9 +97,9 @@ const App: React.FC = () => {
       setLoadingConfig(true);
       const groups = await apiService.fetchDataGroups();
       setDataGroups(groups);
-      
+
       const all: SavedConfiguration[] = [];
-      for(const group of groups) {
+      for (const group of groups) {
         const configs = await apiService.fetchConfigsByGroup(group.id);
         all.push(...configs);
       }
@@ -98,7 +135,7 @@ const App: React.FC = () => {
 
     const newSchema = await apiService.fetchSchemaDefinition(schemaId);
     setSelectedSchema(newSchema);
-    
+
     if (!allMappings[schemaId]) {
       setAllMappings(prev => ({
         ...prev,
@@ -145,7 +182,7 @@ const App: React.FC = () => {
         groupId: currentGroup.id,
         objectMappings: groupMappings
       });
-      
+
       if (result.success) {
         setIsModified(false);
         setActiveConfigId(result.config.id);
@@ -165,7 +202,7 @@ const App: React.FC = () => {
     setConfigName(config.name);
     setActiveConfigId(config.id);
     setIsModified(false);
-    
+
     const firstSchemaId = Object.keys(config.objectMappings)[0] as SchemaType;
     if (firstSchemaId) {
       const schema = await apiService.fetchSchemaDefinition(firstSchemaId);
@@ -194,16 +231,16 @@ const App: React.FC = () => {
     showToast("Exporting XLS report...");
   };
 
-  const activeGroup = useMemo(() => 
+  const activeGroup = useMemo(() =>
     selectedSchema ? dataGroups.find(g => g.objects.includes(selectedSchema.id)) : null
-  , [selectedSchema, dataGroups]);
+    , [selectedSchema, dataGroups]);
 
   if (loadingConfig) {
     return (
       <Layout onGoHome={() => setView('dashboard')}>
         <div className="h-[60vh] flex flex-col items-center justify-center space-y-4">
-           <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent shadow-xl"></div>
-           <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] animate-pulse">Initializing Data Warehouse...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent shadow-xl"></div>
+          <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] animate-pulse">Initializing Data Warehouse...</p>
         </div>
       </Layout>
     );
@@ -212,11 +249,11 @@ const App: React.FC = () => {
   return (
     <Layout onGoHome={() => setView('dashboard')}>
       {toast && <Toast message={toast.message} type={toast.type} />}
-      
+
       {view === 'dashboard' ? (
-        <Dashboard 
-          groups={dataGroups} 
-          configs={allSavedConfigs} 
+        <Dashboard
+          groups={dataGroups}
+          configs={allSavedConfigs}
           onLoadConfig={loadSavedConfig}
           onSelectSchema={handleSchemaChange}
           onDelete={handleDeleteConfig}
@@ -229,7 +266,7 @@ const App: React.FC = () => {
             <section className="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
               <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                 <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System Catalog</h2>
-                <button 
+                <button
                   onClick={handleNewRegistry}
                   className="text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-tighter bg-blue-50 px-3 py-1 rounded-full border border-blue-100 transition-all"
                 >
@@ -270,32 +307,46 @@ const App: React.FC = () => {
               {!sourceData ? (
                 <div className="space-y-4">
                   <div className="border-2 border-dashed border-slate-100 rounded-3xl p-8 text-center hover:border-blue-500 hover:bg-blue-50/50 transition-all cursor-pointer relative group">
-                    <input type="file" accept=".csv,.txt" onChange={(e) => {
+                    <input type="file" accept=".csv,.xlsx,.xls" onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = (event) => {
-                         const text = event.target?.result as string;
-                         if (!selectedSchema) return;
-                         const lines = text.split('\n').filter(l => l.trim() !== '');
-                         const headers = lines[0].split(',').map(h => h.trim());
-                         const rows = lines.slice(1).map(line => {
-                            const values = line.split(',');
-                            const row: Record<string, any> = {};
-                            headers.forEach((header, idx) => { row[header] = values[idx]?.trim(); });
-                            return row;
-                         });
-                         const inferredTypes: Record<string, DataType> = {};
-                         headers.forEach(header => { inferredTypes[header] = inferType(rows.map(r => r[header])); });
-                         setSourceData({ headers, inferredTypes, rows, fileName: file.name });
-                      };
-                      reader.readAsText(file);
+
+                      try {
+                        showToast("Parsing file...", "success");
+                        const result = await parseFile(file);
+
+                        if (!selectedSchema) return;
+
+                        const inferredTypes: Record<string, DataType> = {};
+                        result.headers.forEach(header => {
+                          inferredTypes[header] = inferType(result.rows.map(r => r[header]));
+                        });
+
+
+                        setSourceData({
+                          headers: result.headers,
+                          inferredTypes,
+                          rows: result.rows,
+                          fileName: file.name
+                        });
+                        if (selectedSchema) {
+                          const groupId = getGroupIdForSchema(selectedSchema.id);
+                          if (groupId) runAutoMapGroup(result.headers, groupId);
+                        }
+                        showToast(`Loaded ${result.rows.length} rows from ${file.name}`);
+                      } catch (err: any) {
+                        showToast(`Failed to parse file: ${err.message}`, "error");
+                        console.error('File Parse Error:', err);
+                      }
                     }} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
                     <div className="text-4xl mb-4 grayscale group-hover:grayscale-0 transition-all">📄</div>
                     <p className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Stage Source</p>
                   </div>
                   <button onClick={() => {
-                    const lines = SAMPLE_CSV_DATA.split('\n').filter(l => l.trim() !== '');
+                    const sampleRows = (selectedSchema && SAMPLE_DATA_BY_SCHEMA[selectedSchema.id])
+                      ? SAMPLE_DATA_BY_SCHEMA[selectedSchema.id]
+                      : SAMPLE_CSV_DATA;
+                    const lines = sampleRows.split('\n').filter(l => l.trim() !== '');
                     const headers = lines[0].split(',').map(h => h.trim());
                     const rows = lines.slice(1).map(line => {
                       const values = line.split(',');
@@ -306,6 +357,10 @@ const App: React.FC = () => {
                     const inferredTypes: Record<string, DataType> = {};
                     headers.forEach(header => { inferredTypes[header] = inferType(rows.map(r => r[header])); });
                     setSourceData({ headers, inferredTypes, rows, fileName: 'demo_data.csv' });
+                    if (selectedSchema) {
+                      const groupId = getGroupIdForSchema(selectedSchema.id);
+                      if (groupId) runAutoMapGroup(headers, groupId);
+                    }
                   }} className="w-full py-4 bg-slate-50 text-slate-800 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-100 border border-slate-200 transition-all">Use Demo Payload</button>
                 </div>
               ) : (
@@ -348,11 +403,72 @@ const App: React.FC = () => {
                       </span>
                     )}
                     {activeConfigId && (
-                      <button 
+                      <button
                         onClick={(e) => handleExport(e, allSavedConfigs.find(c => c.id === activeConfigId)!)}
                         className="px-4 py-1.5 bg-blue-500/10 text-blue-400 text-[9px] font-black rounded-full border border-blue-500/20 hover:bg-blue-500/20 transition-all"
                       >
                         EXPORT XLS
+                      </button>
+                    )}
+                    {sourceData && selectedSchema && (
+                      <button
+                        onClick={async () => {
+                          if (!sourceData || !activeGroup) return;
+
+                          if (!confirm(`This will sync data to ALL ${activeGroup.objects.length} tables in the '${activeGroup.name}' group. Proceed?`)) return;
+
+                          showToast("Starting multi-table sync...", "success");
+                          let successCount = 0;
+                          let failCount = 0;
+
+                          // Iterate all schemas in the group
+                          for (const schemaId of activeGroup.objects) {
+                            const schema = SCHEMAS[schemaId];
+                            if (!schema) continue;
+
+                            const currentMappings = allMappings[schemaId] || [];
+                            const targetColumns = schema.fields.map(f => f.column_name);
+
+                            const dbRows = sourceData.rows.map(row => {
+                              const dbRow: Record<string, any> = {};
+                              schema.fields.forEach(field => {
+                                const mapping = currentMappings.find(m => m.targetFieldId === field.id);
+                                let value = null;
+                                if (mapping && mapping.sourceHeader) {
+                                  value = row[mapping.sourceHeader] || null;
+                                }
+
+                                dbRow[field.column_name] = value;
+                              });
+                              return dbRow;
+                            });
+
+                            // Basic check if ANY data for this table is mapped (optional optimization)
+                            const hasMappings = currentMappings.some(m => m.sourceHeader);
+                            if (!hasMappings && dbRows.length > 0) {
+                              console.log(`Skipping ${schema.name} - no mappings found.`);
+                              continue;
+                            }
+
+                            const result = await apiService.syncData(schema.table_name, targetColumns, dbRows);
+                            if (result.success) {
+                              successCount++;
+                              console.log(`Synced ${schema.name}: ${result.rowsAffected} rows.`);
+                            } else {
+                              failCount++;
+                              console.error(`Failed to sync ${schema.name}: ${result.message}`);
+                            }
+                          }
+
+                          if (failCount === 0) {
+                            showToast(`Successfully synced group: ${activeGroup.name}`, "success");
+                          } else {
+                            showToast(`Sync completed with ${failCount} errors.`, "error");
+                          }
+                        }}
+                        className="px-4 py-1.5 bg-emerald-500/10 text-emerald-500 text-[9px] font-black rounded-full border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
+                      >
+                        SYNC GROUP
                       </button>
                     )}
                   </div>
@@ -360,34 +476,34 @@ const App: React.FC = () => {
 
                 {/* Toolbar */}
                 <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl flex flex-col md:flex-row items-center gap-6">
-                   <div className="flex items-center gap-4 bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100 shrink-0">
-                      <span className="text-xl">{selectedSchema.icon}</span>
-                      <div className="flex flex-col">
-                         <span className="text-[11px] font-black text-blue-600 uppercase tracking-widest leading-none">{selectedSchema.name}</span>
-                         <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{selectedSchema.table_name}</span>
-                      </div>
-                   </div>
-                   <div className="flex-1 w-full">
-                      <input 
-                        type="text" 
-                        placeholder={`Name this registry...`}
-                        value={configName}
-                        onChange={(e) => {
-                          setConfigName(e.target.value);
-                          setIsModified(true);
-                        }}
-                        className="w-full bg-slate-50 border border-slate-100 px-5 py-3 rounded-2xl text-[10px] font-black uppercase outline-none focus:border-blue-400 transition-all shadow-inner"
-                      />
-                   </div>
-                   <div className="flex items-center gap-3 w-full md:w-auto">
-                     <button 
+                  <div className="flex items-center gap-4 bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100 shrink-0">
+                    <span className="text-xl">{selectedSchema.icon}</span>
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-black text-blue-600 uppercase tracking-widest leading-none">{selectedSchema.name}</span>
+                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{selectedSchema.table_name}</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 w-full">
+                    <input
+                      type="text"
+                      placeholder={`Name this registry...`}
+                      value={configName}
+                      onChange={(e) => {
+                        setConfigName(e.target.value);
+                        setIsModified(true);
+                      }}
+                      className="w-full bg-slate-50 border border-slate-100 px-5 py-3 rounded-2xl text-[10px] font-black uppercase outline-none focus:border-blue-400 transition-all shadow-inner"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 w-full md:w-auto">
+                    <button
                       onClick={handleSaveConfig}
                       disabled={isSaving || !configName.trim()}
                       className={`flex-1 md:flex-none px-10 py-4 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl transition-all ${activeConfigId ? 'bg-blue-600 shadow-blue-500/20 hover:bg-blue-700' : 'bg-emerald-600 shadow-emerald-500/20 hover:bg-emerald-700'}`}
-                     >
-                       {isSaving ? 'Saving...' : activeConfigId ? 'Update Registry' : 'Register Map'}
-                     </button>
-                   </div>
+                    >
+                      {isSaving ? 'Saving...' : activeConfigId ? 'Update Registry' : 'Register Map'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex-1">
@@ -423,10 +539,10 @@ const App: React.FC = () => {
                     />
                   ) : (
                     <div className="h-full flex items-center justify-center p-20 bg-white border border-dashed border-slate-200 rounded-[3rem]">
-                       <div className="text-center">
-                          <span className="text-4xl block mb-4 opacity-50">📥</span>
-                          <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Stage a data source to begin mapping</p>
-                       </div>
+                      <div className="text-center">
+                        <span className="text-4xl block mb-4 opacity-50">📥</span>
+                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Stage a data source to begin mapping</p>
+                      </div>
                     </div>
                   )}
                 </div>
