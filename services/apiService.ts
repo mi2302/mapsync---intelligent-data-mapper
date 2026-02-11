@@ -37,11 +37,12 @@ export const apiService = {
     config: Omit<SavedConfiguration, 'id' | 'createdAt'> & { id?: string }
   ): Promise<{ success: boolean; config: SavedConfiguration }> => {
     try {
-      // Backend expects: registryId, registryName, moduleName, objectMappings
+      // Use human-readable group name as moduleName
+      const groupName = DATA_GROUPS.find(g => g.id === config.groupId)?.name || config.groupId;
       const payload = {
-        registryId: config.id || Math.floor(Math.random() * 1000000), // Generate numeric ID if new
+        registryId: config.id || Math.floor(Math.random() * 1000000),
         registryName: config.name,
-        moduleName: 'Workforce Management', // Derived from groupId usually
+        moduleName: groupName,
         objectMappings: config.objectMappings
       };
 
@@ -61,22 +62,38 @@ export const apiService = {
     }
   },
 
-  fetchConfigsByGroup: async (groupId: string): Promise<SavedConfiguration[]> => {
+  fetchAllConfigs: async (): Promise<SavedConfiguration[]> => {
     try {
       const response = await fetch(`${API_URL}/registry`);
       if (!response.ok) return [];
       const configs = await response.json();
-      // Filter by group on client side since backend returns all for now
-      // This maps the backend structure back to frontend 'SavedConfiguration'
       return configs.map((c: any) => ({
         id: c.id,
         name: c.name,
-        groupId: 'workforce', // Hardcoded for this demo scope as requested
+        groupId: c.groupId || 'workforce',
         objectMappings: c.objectMappings || {},
-        createdAt: new Date().toISOString()
+        createdAt: c.createdAt || new Date().toISOString()
       }));
     } catch (error) {
-      console.error('Fetch Configs Failed:', error);
+      console.error('Fetch All Configs Failed:', error);
+      return [];
+    }
+  },
+
+  fetchConfigsByGroup: async (groupId: string): Promise<SavedConfiguration[]> => {
+    try {
+      const response = await fetch(`${API_URL}/modules/${groupId}/registries`);
+      if (!response.ok) return [];
+      const configs = await response.json();
+      return configs.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        groupId: c.groupId,
+        objectMappings: c.objectMappings || {},
+        createdAt: c.createdAt || new Date().toISOString()
+      }));
+    } catch (error) {
+      console.error(`Fetch Configs for ${groupId} Failed:`, error);
       return [];
     }
   },

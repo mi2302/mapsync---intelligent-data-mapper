@@ -2,6 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const oracledb = require('oracledb');
+const path = require('path');
+
+// Configure oracledb to fetch CLOBs as strings
+oracledb.fetchAsString = [oracledb.CLOB];
 
 const app = express();
 const PORT = 3005;
@@ -10,7 +14,6 @@ const PORT = 3005;
 app.use(cors());
 app.use(express.json());
 
-const path = require('path');
 // Enable Thick mode manually
 try {
     oracledb.initOracleClient({ libDir: path.join(__dirname, 'instantclient_19_19') });
@@ -41,82 +44,30 @@ async function initializeDatabase() {
         const dbConfig = getDbConfig();
         const { user, password, connectString } = dbConfig;
 
-        console.log('Environment Debug:', {
-            raw_password_length: (process.env.DB_PASSWORD || '').length,
-            processed_password_length: password.length,
-            processed_password_first: password.charAt(0),
-            processed_password_last: password.charAt(password.length - 1),
-            has_dollar: password.includes('$')
-        });
-
-        console.log('Attempting connection with:', {
-            user,
-            connectString,
-            passwordLength: password.length
-        });
-
+        console.log('Attempting connection with:', { user, connectString });
         connection = await oracledb.getConnection(dbConfig);
-
         console.log('Connected to Oracle Database');
 
-        const tablesToInit = [
-            {
-                name: 'msai_hr_employee_master',
-                ddl: `CREATE TABLE msai_hr_employee_master (
-                      emp_id VARCHAR2(50) PRIMARY KEY,
-                      first_name VARCHAR2(100) NOT NULL,
-                      last_name VARCHAR2(100) NOT NULL,
-                      email VARCHAR2(100) NOT NULL,
-                      hire_date TIMESTAMP
-                    )`
-            },
-            {
-                name: 'msai_hr_assignments',
-                ddl: `CREATE TABLE msai_hr_assignments (
-                      assignment_id VARCHAR2(50) PRIMARY KEY,
-                      emp_ref VARCHAR2(50) NOT NULL,
-                      project_code VARCHAR2(50) NOT NULL,
-                      start_ts TIMESTAMP
-                    )`
-            },
-            {
-                name: 'fin_payroll_run',
-                ddl: `CREATE TABLE fin_payroll_run (
-                      pay_run_id VARCHAR2(50) PRIMARY KEY,
-                      gross_amount NUMBER,
-                      disbursement_date TIMESTAMP
-                    )`
+        // --- SCHEMA MIGRATION: Drop old table if requested ---
+        try {
+            const checkOld = await connection.execute(`SELECT count(*) FROM user_tables WHERE table_name = 'MSAI_MODULE_OBJECTS'`);
+            if (checkOld.rows[0][0] > 0) {
+                console.log('Dropping legacy table MSAI_MODULE_OBJECTS...');
+                await connection.execute(`DROP TABLE MSAI_MODULE_OBJECTS PURGE`);
             }
-            // Add more tables here as needed (Invoice, Supplier, etc.)
-        ];
-
-        for (const table of tablesToInit) {
-            const tableName = table.name.toUpperCase();
-            // Check if table exists
-            const checkTableSql = `SELECT count(*) FROM user_tables WHERE table_name = '${tableName}'`;
-            const result = await connection.execute(checkTableSql);
-
-            if (result.rows[0][0] === 0) {
-                console.log(`Table ${table.name} does not exist. Creating...`);
-                try {
-                    await connection.execute(table.ddl);
-                    console.log(`Table ${table.name} created successfully.`);
-                } catch (createErr) {
-                    console.error(`Error creating table ${table.name}:`, createErr);
-                }
-            } else {
-                console.log(`Table ${table.name} already exists.`);
-            }
+        } catch (e) {
+            console.log('Note: MSAI_MODULE_OBJECTS drop skipped or failed', e.message);
         }
+
+        console.log('Database initialization complete (No Data Seeding).');
+
+        await connection.commit();
+        console.log('Database initialization complete.');
     } catch (err) {
         console.error('Oracle DB Initialization Error:', err);
     } finally {
         if (connection) {
-            try {
-                await connection.close();
-            } catch (err) {
-                console.error('Error closing connection:', err);
-            }
+            try { await connection.close(); } catch (err) { console.error('Error closing connection:', err); }
         }
     }
 }
@@ -141,17 +92,10 @@ app.get('/api/db-check', async (req, res) => {
         res.status(500).json({ status: 'error', message: err.message });
     } finally {
         if (connection) {
-            try {
-                await connection.close();
-            } catch (err) {
-                console.error(err);
-            }
+            try { await connection.close(); } catch (err) { console.error(err); }
         }
     }
 });
-
-// Bulk Insert Endpoint
-// --- Relational Metadata Endpoints ---
 
 // Save Registry Configuration (Full Hierarchy)
 app.post('/api/registry', async (req, res) => {
@@ -163,65 +107,65 @@ app.post('/api/registry', async (req, res) => {
         const dbConfig = getDbConfig();
         connection = await oracledb.getConnection(dbConfig);
 
-        // 1. Upsert Registry Header
-        // Check if exists
-        const checkReg = await connection.execute(
-            `SELECT count(*) FROM MSAI_REGISTRY WHERE REGISTRY_ID = :id`,
-            [registryId]
+        // 1. Upsert Registry Header (Using MERGE to avoid "new records" if exists)
+        await connection.execute(
+            `MERGE INTO MSAI_REGISTRY t
+             USING (SELECT :id as rid, :name as rname, :mod as mname FROM DUAL) s
+             ON (t.REGISTRY_ID = s.rid)
+             WHEN MATCHED THEN
+                 UPDATE SET t.REGISTRY_NAME = s.rname, t.MODULE_NAME = s.mname
+             WHEN NOT MATCHED THEN
+                 INSERT (REGISTRY_ID, REGISTRY_NAME, MODULE_NAME)
+                 VALUES (s.rid, s.rname, s.mname)`,
+            { id: registryId, name: registryName, mod: moduleName },
+            { autoCommit: false }
         );
 
-        if (checkReg.rows[0][0] === 0) {
-            await connection.execute(
-                `INSERT INTO MSAI_REGISTRY (REGISTRY_ID, REGISTRY_NAME, MODULE_NAME) VALUES (:id, :name, :mod)`,
-                { id: registryId, name: registryName, mod: moduleName },
-                { autoCommit: false }
-            );
-        } else {
-            await connection.execute(
-                `UPDATE MSAI_REGISTRY SET REGISTRY_NAME = :name, MODULE_NAME = :mod WHERE REGISTRY_ID = :id`,
-                { id: registryId, name: registryName, mod: moduleName },
-                { autoCommit: false }
-            );
-        }
+        // 2. Clear old links (We keep mappings but refresh relations)
+        await connection.execute(`DELETE FROM MSAI_REGISTRY_MODULES WHERE REGISTRY_ID = :id`, [registryId], { autoCommit: false });
 
-        // 2. Clear existing details for this registry (Simpler than complex diffing for now)
-        await connection.execute(`DELETE FROM MSAI_MAPPING_METADATA WHERE REGISTRY_ID = :id`, [registryId], { autoCommit: false });
-        await connection.execute(`DELETE FROM MSAI_MODULE_OBJECTS WHERE REGISTRY_ID = :id`, [registryId], { autoCommit: false });
-
-        // 3. Insert Module Objects & Mappings
-        // objectMappings is Record<string, FieldMapping[]>
-        // schemaId -> mappings
+        // 3. Process Modules and Links
         for (const [schemaId, mappings] of Object.entries(objectMappings)) {
-            // Insert Module Object entry
-            // Generate a random numeric ID for the module object (mock sequence)
-            const modObjId = Math.floor(Math.random() * 1000000);
+            const objectName = schemaId;
+            // A. Find Module Definition in MSAI_MODULES (Fixed as per User)
+            const checkModule = await connection.execute(
+                `SELECT MODULE_ID FROM MSAI_MODULES WHERE MODULE_NAME = :mname AND OBJECT_NAME = :oname`,
+                [moduleName, objectName]
+            );
+
+            if (checkModule.rows.length === 0) {
+                throw new Error(`Critical: Module definition not found for ${moduleName} / ${objectName}. Please ensure the module exists in MSAI_MODULES.`);
+            }
+            const moduleId = checkModule.rows[0][0];
+
+            // B. Link Registry to Module in MSAI_REGISTRY_MODULES
+            const linkId = String(Math.floor(Math.random() * 10000000));
             await connection.execute(
-                `INSERT INTO MSAI_MODULE_OBJECTS (MODULE_OBJ_ID, REGISTRY_ID, MODULE_NAME, OBJECT_NAME, TARGET_TABLE_NAME) 
-                     VALUES (:mid, :rid, :mname, :oname, :tname)`,
-                {
-                    mid: String(modObjId), // Ensure it's a string for VARCHAR2
-                    rid: registryId,
-                    mname: moduleName,
-                    oname: schemaId, // e.g. 'EMPLOYEE_MASTER'
-                    tname: `MSAI_HR_${schemaId.replace('HR_', '')}` // Best guess table name derived or passed from frontend
-                },
+                `INSERT INTO MSAI_REGISTRY_MODULES (LINK_ID, REGISTRY_ID, MODULE_ID) VALUES (:lid, :rid, :mid)`,
+                { lid: linkId, rid: registryId, mid: moduleId },
                 { autoCommit: false }
             );
 
-            // Insert Mappings
+            // C. Upsert Mappings (MSAI_MAPPING_METADATA)
+            // Using MERGE based on (Registry + Object + Column) to update rather than create new
             for (const map of mappings) {
                 if (map.sourceHeader) {
-                    const mapId = Math.floor(Math.random() * 10000000);
                     await connection.execute(
-                        `INSERT INTO MSAI_MAPPING_METADATA (MAPPING_ID, REGISTRY_ID, REGISTRY_NAME, MODULE_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC)
-                             VALUES (:mapid, :rid, :rname, :mname, :src, :tgt, :logic)`,
+                        `MERGE INTO MSAI_MAPPING_METADATA t
+                         USING (SELECT :rid as rid, :oname as oname, :tgt as tgt FROM DUAL) s
+                         ON (t.REGISTRY_ID = s.rid AND t.MODULE_NAME = s.oname AND t.MAPPING_ATTRIBUTE_COLUMN = s.tgt)
+                         WHEN MATCHED THEN
+                             UPDATE SET t.SOURCE_ATTRIBUTE_HEADER = :src, t.ADDITION_LOGIC = :logic, t.REGISTRY_NAME = :rname
+                         WHEN NOT MATCHED THEN
+                             INSERT (MAPPING_ID, REGISTRY_ID, REGISTRY_NAME, MODULE_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC)
+                             VALUES (:mapid, :rid, :rname, :oname, :src, :tgt, :logic)`,
                         {
-                            mapid: String(mapId), // Ensure it's a string for VARCHAR2
+                            mapid: String(Math.floor(Math.random() * 10000000)),
                             rid: registryId,
                             rname: registryName,
-                            mname: moduleName,
+                            oname: objectName, // Link to specific schema object
                             src: map.sourceHeader,
-                            tgt: map.targetFieldId, // This is usually the column ID or name. Frontend sends 'fld_1', need to ensure it sends column name or we look it up.
+                            tgt: map.targetFieldId,
                             logic: JSON.stringify(map.transformations || [])
                         },
                         { autoCommit: false }
@@ -246,90 +190,112 @@ app.post('/api/registry', async (req, res) => {
 });
 
 // Fetch All Registries
+// Helper to build registry response
+async function buildRegistryConfigs(connection, regRows) {
+    const configs = [];
+    for (const row of regRows) {
+        const regId = row.REGISTRY_ID;
+        const objectMappings = {};
+
+        // Get Linked Modules
+        const modulesResult = await connection.execute(
+            `SELECT m.MODULE_ID, m.OBJECT_NAME, m.MODULE_NAME
+             FROM MSAI_REGISTRY_MODULES rm
+             JOIN MSAI_MODULES m ON rm.MODULE_ID = m.MODULE_ID
+             WHERE rm.REGISTRY_ID = :rid`,
+            [regId],
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        // Fetch Mappings
+        const mapResult = await connection.execute(
+            `SELECT MODULE_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC
+              FROM MSAI_MAPPING_METADATA
+              WHERE REGISTRY_ID = :rid`,
+            [regId],
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        for (const mod of modulesResult.rows) {
+            const schemaId = mod.OBJECT_NAME;
+            // Filter mappings belonging to THIS specific object
+            objectMappings[schemaId] = mapResult.rows
+                .filter(m => m.MODULE_NAME === schemaId)
+                .map(m => ({
+                    sourceHeader: m.SOURCE_ATTRIBUTE_HEADER,
+                    targetFieldId: m.MAPPING_ATTRIBUTE_COLUMN,
+                    transformations: m.ADDITION_LOGIC ? JSON.parse(m.ADDITION_LOGIC) : []
+                }));
+        }
+
+        // Map stored Module Name back to Frontend Group ID
+        let groupId = 'workforce';
+        if (row.MODULE_NAME === 'Accounts Payable') groupId = 'payables';
+        else if (row.MODULE_NAME === 'Vendor Relations' || row.MODULE_NAME === 'suppliers') groupId = 'suppliers';
+        else if (row.MODULE_NAME === 'Workforce Management' || row.MODULE_NAME === 'workforce') groupId = 'workforce';
+        else groupId = row.MODULE_NAME; // Fallback to raw value if it's already an ID
+
+        configs.push({
+            id: String(row.REGISTRY_ID),
+            name: row.REGISTRY_NAME,
+            groupId: groupId,
+            objectMappings: objectMappings
+        });
+    }
+    return configs;
+}
+
+// Fetch All Registries
 app.get('/api/registry', async (req, res) => {
     let connection;
     try {
         const dbConfig = getDbConfig();
         connection = await oracledb.getConnection(dbConfig);
-        const result = await connection.execute(
+
+        const regResult = await connection.execute(
             `SELECT REGISTRY_ID, REGISTRY_NAME, MODULE_NAME FROM MSAI_REGISTRY`,
             [],
             { outFormat: oracledb.OUT_FORMAT_OBJECT }
         );
 
-        const configs = [];
-        // For each registry, strictly we should fetch details, but for the list view we just need headers
-        // To make it compatible with frontend 'SavedConfiguration', we might need to fetch all details or lazy load.
-        // For now, let's fetch all details to fully reconstruct the frontend state.
-
-        for (const row of result.rows) {
-            const regId = row.REGISTRY_ID;
-
-            // Fetch Mappings
-            // const mapResult = await connection.execute(
-            //     `SELECT OBJECT_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC 
-            //          FROM MSAI_MAPPING_METADATA 
-            //          WHERE REGISTRY_ID = :rid`,
-            //     [regId],
-            //     { outFormat: oracledb.OUT_FORMAT_OBJECT }
-            // );
-
-            // Reconstruct objectMappings
-            const objectMappings = {};
-
-            // We need to group by OBJECT_NAME (which corresponds to schemaId in frontend)
-            // However, OBJECT_NAME in MSAI_MODULE_OBJECTS is where we store schemaId.
-            // Let's join or just fetch MSAI_MODULE_OBJECTS first? 
-
-            // A simpler way for the frontend structure:
-            // We need to know which mappings belong to which schema.
-            // In MSAI_MAPPING_METADATA, we didn't strictly store the OBJECT_NAME in the snippet above (my bad), 
-            // but we can infer or join.
-
-            // Let's do a JOIN
-            // const fullData = await connection.execute(
-            //     `SELECT m.OBJECT_NAME, d.SOURCE_ATTRIBUTE_HEADER, d.MAPPING_ATTRIBUTE_COLUMN, d.ADDITION_LOGIC
-            //          FROM MSAI_MODULE_OBJECTS m
-            //          JOIN MSAI_MAPPING_METADATA d ON m.REGISTRY_ID = d.REGISTRY_ID 
-            //          -- WAIT, MSAI_MAPPING_METADATA doesn't have MODULE_OBJ_ID FK. 
-            //          -- Changing design slightly on the fly: usage of MODULE_NAME/REGISTRY to link is weak if multiple objects.
-            //          -- Use the 'OBJECT_NAME' we stored likely in the loop. 
-            //          -- Actually, looking at my insert: I inserted MODULE_NAME but not OBJECT_NAME in MSAI_MAPPING_METADATA.
-            //          -- I should fix the INSERT to store OBJECT_NAME or link via ID.
-            //          -- Correct fix: Update the INSERT to store keys properly.
-            //          -- FOR NOW: Assuming simplistic 1-1 or user will fix.
-            //          -- RE-READING INSERT: I *DID NOT* insert OBJECT_NAME into MSAI_MAPPING_METADATA.
-            //          -- I inserted REGISTRY_NAME, MODULE_NAME.
-            //          -- This is a flaw in the provided schema for multi-object registries.
-            //          -- I will try to fetch what I can.
-            //          WHERE m.REGISTRY_ID = :rid`,
-            //     [regId],
-            //     { outFormat: oracledb.OUT_FORMAT_OBJECT }
-            // );
-
-            // for (const dataRow of fullData.rows) {
-            //     const schemaId = dataRow.OBJECT_NAME;
-            //     if (!objectMappings[schemaId]) {
-            //         objectMappings[schemaId] = [];
-            //     }
-            //     objectMappings[schemaId].push({
-            //         sourceHeader: dataRow.SOURCE_ATTRIBUTE_HEADER,
-            //         targetFieldId: dataRow.MAPPING_ATTRIBUTE_COLUMN,
-            //         transformations: dataRow.ADDITION_LOGIC ? JSON.parse(dataRow.ADDITION_LOGIC) : []
-            //     });
-            // }
-
-            configs.push({
-                id: String(row.REGISTRY_ID),
-                name: row.REGISTRY_NAME,
-                groupId: 'workforce', // Hardcoded deduction or stored in MODULE_NAME map
-                objectMappings: objectMappings // TODO: Populate this if I can fix the join
-            });
-        }
-
+        const configs = await buildRegistryConfigs(connection, regResult.rows);
         res.json(configs);
     } catch (err) {
         console.error('Fetch Registry Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    } finally {
+        if (connection) {
+            try { await connection.close(); } catch (err) { console.error(err); }
+        }
+    }
+});
+
+// Fetch Registries by Module (Group)
+app.get('/api/modules/:moduleName/registries', async (req, res) => {
+    const { moduleName } = req.params;
+    let connection;
+    try {
+        const dbConfig = getDbConfig();
+        connection = await oracledb.getConnection(dbConfig);
+
+        // Map ID to Name for Query
+        let searchNames = [moduleName];
+        if (moduleName === 'workforce') searchNames.push('Workforce Management');
+        if (moduleName === 'payables') searchNames.push('Accounts Payable');
+        if (moduleName === 'suppliers') searchNames.push('Vendor Relations');
+
+        const regResult = await connection.execute(
+            `SELECT REGISTRY_ID, REGISTRY_NAME, MODULE_NAME 
+             FROM MSAI_REGISTRY 
+             WHERE UPPER(MODULE_NAME) IN (${searchNames.map((_, i) => `:mod${i}`).join(',')})`,
+            searchNames.reduce((acc, name, i) => ({ ...acc, [`mod${i}`]: name.toUpperCase() }), {}),
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        const configs = await buildRegistryConfigs(connection, regResult.rows);
+        res.json(configs);
+    } catch (err) {
+        console.error('Fetch Module Registry Error:', err);
         res.status(500).json({ success: false, message: err.message });
     } finally {
         if (connection) {
@@ -346,7 +312,7 @@ app.delete('/api/registry/:id', async (req, res) => {
         const dbConfig = getDbConfig();
         connection = await oracledb.getConnection(dbConfig);
         await connection.execute(`DELETE FROM MSAI_MAPPING_METADATA WHERE REGISTRY_ID = :id`, [id], { autoCommit: false });
-        await connection.execute(`DELETE FROM MSAI_MODULE_OBJECTS WHERE REGISTRY_ID = :id`, [id], { autoCommit: false });
+        await connection.execute(`DELETE FROM MSAI_REGISTRY_MODULES WHERE REGISTRY_ID = :id`, [id], { autoCommit: false });
         await connection.execute(`DELETE FROM MSAI_REGISTRY WHERE REGISTRY_ID = :id`, [id], { autoCommit: false });
         await connection.commit();
         res.json({ success: true });

@@ -170,17 +170,23 @@ const App: React.FC = () => {
     if (!currentGroup) return;
 
     const groupMappings: Record<string, FieldMapping[]> = {};
-    currentGroup.objects.forEach(objId => {
-      if (allMappings[objId]) groupMappings[objId] = allMappings[objId];
+    currentGroup.objects.forEach(schemaId => {
+      if (allMappings[schemaId]) {
+        groupMappings[schemaId] = allMappings[schemaId];
+      }
     });
+
+    const configToSave: Omit<SavedConfiguration, 'id' | 'createdAt'> = {
+      name: configName,
+      groupId: currentGroup.id,
+      objectMappings: groupMappings
+    };
 
     setIsSaving(true);
     try {
       const result = await apiService.saveMappingConfiguration({
         id: activeConfigId || undefined,
-        name: configName,
-        groupId: currentGroup.id,
-        objectMappings: groupMappings
+        ...configToSave
       });
 
       if (result.success) {
@@ -329,22 +335,6 @@ const App: React.FC = () => {
                           rows: result.rows,
                           fileName: file.name
                         });
-                        if (selectedSchema) {
-                          const groupId = getGroupIdForSchema(selectedSchema.id);
-                          // Clear existing mappings for this group to ensure no stale auto-mapping or previous state
-                          if (groupId) {
-                            const group = dataGroups.find(g => g.id === groupId);
-                            if (group) {
-                              const resetMappings: Record<string, FieldMapping[]> = {};
-                              group.objects.forEach(sId => {
-                                const s = SCHEMAS[sId];
-                                if (s) resetMappings[sId] = s.fields.map(f => ({ targetFieldId: f.id, transformations: [] }));
-                              });
-                              setAllMappings(prev => ({ ...prev, ...resetMappings }));
-                            }
-                          }
-                          // if (groupId) runAutoMapGroup(result.headers, groupId);
-                        }
                         showToast(`Loaded ${result.rows.length} rows from ${file.name}`);
                       } catch (err: any) {
                         showToast(`Failed to parse file: ${err.message}`, "error");
@@ -369,22 +359,6 @@ const App: React.FC = () => {
                     const inferredTypes: Record<string, DataType> = {};
                     headers.forEach(header => { inferredTypes[header] = inferType(rows.map(r => r[header])); });
                     setSourceData({ headers, inferredTypes, rows, fileName: 'demo_data.csv' });
-                    if (selectedSchema) {
-                      const groupId = getGroupIdForSchema(selectedSchema.id);
-                      // Clear existing mappings for this group
-                      if (groupId) {
-                        const group = dataGroups.find(g => g.id === groupId);
-                        if (group) {
-                          const resetMappings: Record<string, FieldMapping[]> = {};
-                          group.objects.forEach(sId => {
-                            const s = SCHEMAS[sId];
-                            if (s) resetMappings[sId] = s.fields.map(f => ({ targetFieldId: f.id, transformations: [] }));
-                          });
-                          setAllMappings(prev => ({ ...prev, ...resetMappings }));
-                        }
-                      }
-                      // if (groupId) runAutoMapGroup(headers, groupId);
-                    }
                   }} className="w-full py-4 bg-slate-50 text-slate-800 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-100 border border-slate-200 transition-all">Use Demo Payload</button>
                 </div>
               ) : (
@@ -538,10 +512,14 @@ const App: React.FC = () => {
                       source={sourceData}
                       mappings={allMappings[selectedSchema.id] || []}
                       onUpdateMapping={(newMapping) => {
-                        setAllMappings(prev => ({
-                          ...prev,
-                          [selectedSchema.id]: (prev[selectedSchema.id] || []).map(m => m.targetFieldId === newMapping.targetFieldId ? newMapping : m)
-                        }));
+                        setAllMappings(prev => {
+                          const current = prev[selectedSchema.id] || [];
+                          const exists = current.some(m => m.targetFieldId === newMapping.targetFieldId);
+                          const updated = exists
+                            ? current.map(m => m.targetFieldId === newMapping.targetFieldId ? newMapping : m)
+                            : [...current, newMapping];
+                          return { ...prev, [selectedSchema.id]: updated };
+                        });
                         setIsModified(true);
                       }}
                       onAutoMap={async () => {
@@ -549,10 +527,18 @@ const App: React.FC = () => {
                         try {
                           const suggestions = await suggestMappings(sourceData.headers, selectedSchema);
                           const currentMappings = allMappings[selectedSchema.id] || [];
-                          const updated = currentMappings.map(m => {
-                            const s = suggestions.find(s => s.targetFieldId === m.targetFieldId);
-                            return s?.sourceHeader ? { ...m, ...s } : m;
+
+                          // Handle building new list if current is empty or incomplete
+                          const updated = selectedSchema.fields.map(field => {
+                            const existing = currentMappings.find(m => m.targetFieldId === field.id);
+                            const suggestion = suggestions.find(s => s.targetFieldId === field.id);
+
+                            if (suggestion?.sourceHeader) {
+                              return { ...(existing || { targetFieldId: field.id, transformations: [] }), ...suggestion };
+                            }
+                            return existing || { targetFieldId: field.id, transformations: [] };
                           });
+
                           setAllMappings(prev => ({ ...prev, [selectedSchema.id]: updated }));
                           setIsModified(true);
                           showToast("AI Mapping complete.");

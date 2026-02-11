@@ -44,7 +44,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{group.objects.length} Objects Managed</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => onSelectSchema(group.objects[0])}
                   className="p-3 bg-white rounded-2xl border border-slate-200 text-blue-600 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all shadow-sm"
                 >
@@ -59,7 +59,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
                   </div>
                 ) : (
                   groupConfigs.map(config => (
-                    <div 
+                    <div
                       key={config.id}
                       onClick={() => onLoadConfig(config)}
                       className="group/item flex items-center justify-between p-4 bg-slate-50 border border-transparent hover:border-blue-200 hover:bg-white rounded-2xl transition-all cursor-pointer shadow-sm hover:shadow-md"
@@ -68,15 +68,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
                         <span className="text-[10px] font-black text-slate-700 uppercase truncate group-hover/item:text-blue-600">{config.name}</span>
                         <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{Object.keys(config.objectMappings).length} Data Objects</span>
                       </div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                        <button 
+                      <div className="flex items-center gap-2 transition-opacity">
+                        <button
                           onClick={(e) => onExport(e, config)}
-                          className="p-2 text-slate-400 hover:text-emerald-500 transition-colors" 
+                          className="p-2 text-slate-400 hover:text-emerald-500 transition-colors"
                           title="Export XLS"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                         </button>
-                        <button 
+                        <button
                           onClick={(e) => onDelete(e, config.id)}
                           className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
                           title="Purge Entry"
@@ -88,7 +88,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
                   ))
                 )}
               </div>
-              
+
               <div className="p-6 bg-slate-50 border-t border-slate-100 mt-auto">
                 <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
                   {group.objects.map(obj => (
