@@ -1,14 +1,24 @@
+export type SchemaType =
+  | 'EMPLOYEE_MASTER'
+  | 'ASSIGNMENT'
+  | 'PAYROLL'
+  | 'INVOICE_HEADER'
+  | 'INVOICE_LINES'
+  | 'SUPPLIER_HEADER'
+  | 'SUPPLIER_SITES'
+  | 'SUPPLIER_TAX'
+  | string;
 
-export enum SchemaType {
-  EMPLOYEE_MASTER = 'EMPLOYEE_MASTER',
-  ASSIGNMENT = 'ASSIGNMENT',
-  PAYROLL = 'PAYROLL',
-  INVOICE_HEADER = 'INVOICE_HEADER',
-  INVOICE_LINES = 'INVOICE_LINES',
-  SUPPLIER_HEADER = 'SUPPLIER_HEADER',
-  SUPPLIER_SITES = 'SUPPLIER_SITES',
-  SUPPLIER_TAX = 'SUPPLIER_TAX'
-}
+export const SchemaTypes = {
+  EMPLOYEE_MASTER: 'EMPLOYEE_MASTER',
+  ASSIGNMENT: 'ASSIGNMENT',
+  PAYROLL: 'PAYROLL',
+  INVOICE_HEADER: 'INVOICE_HEADER',
+  INVOICE_LINES: 'INVOICE_LINES',
+  SUPPLIER_HEADER: 'SUPPLIER_HEADER',
+  SUPPLIER_SITES: 'SUPPLIER_SITES',
+  SUPPLIER_TAX: 'SUPPLIER_TAX'
+} as const;
 
 export type DataType = 'VARCHAR' | 'NUMERIC' | 'TIMESTAMP' | 'BOOLEAN';
 
@@ -21,17 +31,19 @@ export interface TargetField {
   description: string;
 }
 
-export type TransformationType = 
-  | 'constant' 
-  | 'uppercase' 
-  | 'lowercase' 
-  | 'trim' 
-  | 'default_if_null' 
-  | 'prefix' 
-  | 'suffix' 
+export type TransformationType =
+  | 'constant'
+  | 'uppercase'
+  | 'lowercase'
+  | 'trim'
+  | 'default_if_null'
+  | 'prefix'
+  | 'suffix'
   | 'replace'
   | 'to_number'
-  | 'to_date';
+  | 'to_date'
+  | 'concatenate'
+  | 'substring';
 
 export interface TransformationStep {
   id: string;
@@ -52,7 +64,8 @@ export interface SourceData {
   headers: string[];
   inferredTypes: Record<string, DataType>;
   rows: Record<string, any>[];
-  fileName: string;
+  fileNames: string[];
+  fileHeaders: Record<string, string[]>;
 }
 
 export interface SchemaDefinition {
@@ -75,6 +88,6 @@ export interface SavedConfiguration {
   name: string;
   groupId: string;
   // Record of Object ID to its specific mappings
-  objectMappings: Record<string, FieldMapping[]>; 
+  objectMappings: Record<string, FieldMapping[]>;
   createdAt: string;
 }

@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { SchemaDefinition, SourceData, FieldMapping, TransformationStep, TransformationType, DataType } from '../types';
+import { applyTransformations } from '../utils/transformations';
 
 interface MappingInterfaceProps {
   schema: SchemaDefinition;
@@ -9,6 +10,8 @@ interface MappingInterfaceProps {
   onUpdateMapping: (mapping: FieldMapping) => void;
   onAutoMap: () => void;
   isAutoMapping: boolean;
+  onRemoveFile?: (fileName: string) => void;
+  onSync: () => Promise<void>;
 }
 
 const TRANSFORMATION_META: Record<TransformationType, { label: string; icon: string; color: string; bg: string; border: string }> = {
@@ -21,7 +24,9 @@ const TRANSFORMATION_META: Record<TransformationType, { label: string; icon: str
   suffix: { label: 'Add Suffix', icon: '➡️', color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200' },
   replace: { label: 'Find & Replace', icon: '🔍', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
   to_number: { label: 'To Number', icon: '🔢', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
-  to_date: { label: 'To Date', icon: '📅', color: 'text-cyan-700', bg: 'bg-cyan-50', border: 'border-cyan-200' }
+  to_date: { label: 'To Date', icon: '📅', color: 'text-cyan-700', bg: 'bg-cyan-50', border: 'border-cyan-200' },
+  concatenate: { label: 'Concatenate', icon: '🔗', color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200' },
+  substring: { label: 'Substring', icon: '✂️', color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' }
 };
 
 const TYPE_COLORS: Record<DataType, string> = {
@@ -44,7 +49,9 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
   mappings,
   onUpdateMapping,
   onAutoMap,
-  isAutoMapping
+  isAutoMapping,
+  onRemoveFile,
+  onSync
 }) => {
   const [activeTab, setActiveTab] = useState<'mapping' | 'preview'>('mapping');
   const [draggedHeader, setDraggedHeader] = useState<string | null>(null);
@@ -116,44 +123,19 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
     });
   };
 
-  const applyTransformations = (value: any, transformations: TransformationStep[]) => {
-    let result = value;
-    transformations.forEach(step => {
-      switch (step.type) {
-        case 'constant': result = step.value; break;
-        case 'uppercase': result = String(result || '').toUpperCase(); break;
-        case 'lowercase': result = String(result || '').toLowerCase(); break;
-        case 'trim': result = String(result || '').trim(); break;
-        case 'default_if_null': if (result === null || result === undefined || result === '') result = step.value; break;
-        case 'prefix': result = (step.value || '') + String(result || ''); break;
-        case 'suffix': result = String(result || '') + (step.value || ''); break;
-        case 'replace': result = String(result || '').replace(new RegExp(step.value || '', 'g'), step.replaceWith || ''); break;
-        case 'to_number':
-          if (result === null || result === undefined || (typeof result === 'string' && result.trim() === '')) {
-            result = null;
-          } else {
-            const num = Number(result);
-            result = isNaN(num) ? null : num;
-          }
-          break;
-        case 'to_date':
-          if (result === null || result === undefined || (typeof result === 'string' && result.trim() === '')) {
-            result = null;
-          } else {
-            const timestamp = Date.parse(result);
-            if (isNaN(timestamp)) {
-              result = null;
-            } else {
-              result = new Date(timestamp).toISOString();
-            }
-          }
-          break;
-      }
-    });
-    return result;
-  };
+  // Use shared utility
 
-  const previewData = source.rows.slice(0, 8).map(row => {
+
+  // Filter rows to only show relevant data (avoiding rows from other files that are all NULLs for this mapping)
+  const mappedSourceHeaders = schema.fields
+    .map(f => getMappingForField(f.id).sourceHeader)
+    .filter(h => h !== undefined) as string[];
+
+  const relevantRows = mappedSourceHeaders.length > 0
+    ? source.rows.filter(row => mappedSourceHeaders.some(h => row[h] !== undefined && row[h] !== null && row[h] !== ''))
+    : []; // If nothing mapped, show nothing (don't show rows from other files)
+
+  const previewData = relevantRows.slice(0, 8).map(row => {
     const mappedRow: Record<string, any> = {};
     schema.fields.forEach(field => {
       const mapping = getMappingForField(field.id);
@@ -165,22 +147,52 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
 
   const getValidationStatus = (field: any, mapping: FieldMapping) => {
     if (!mapping.sourceHeader) return null;
-    const sourceInferred = source.inferredTypes[mapping.sourceHeader];
+
+    // Fuzzy match header name to handle case/space sensitivity gracefully
+    const actualHeader = source.headers.find(h => h.toLowerCase().trim() === mapping.sourceHeader?.toLowerCase().trim());
+
+    if (!actualHeader) {
+      return {
+        status: 'mismatch',
+        label: 'Missing Column',
+        icon: '🔍',
+        color: 'text-amber-600 bg-amber-50 border-amber-100',
+        reason: `Mapped header '${mapping.sourceHeader}' was not found in the current source files.`
+      };
+    }
+
+    const sourceInferred = source.inferredTypes[actualHeader];
     const targetRequired = field.type;
 
     if (sourceInferred === targetRequired) {
       return { status: 'match', label: 'Schema Match', icon: '🏛️', color: 'text-emerald-600 bg-emerald-50 border-emerald-100', reason: 'Verified semantic & structural alignment.' };
     }
 
+    // Safe conversions: Numeric/Boolean to VARCHAR
+    if (targetRequired === 'VARCHAR' && (sourceInferred === 'NUMERIC' || sourceInferred === 'BOOLEAN')) {
+      return { status: 'match', label: 'Safe Conversion', icon: '✅', color: 'text-blue-600 bg-blue-50 border-blue-100', reason: `Source is ${sourceInferred}, which can be safely coerced to ${targetRequired}.` };
+    }
+
     if (targetRequired === 'NUMERIC' && sourceInferred === 'VARCHAR') {
-      return { status: 'warn', label: 'Type Cast Required', icon: '⚡', color: 'text-amber-600 bg-amber-50 border-amber-100', reason: 'PostgreSQL casting required for numeric columns.' };
+      return { status: 'warn', label: 'Type Cast Required', icon: '⚡', color: 'text-amber-600 bg-amber-50 border-amber-100', reason: 'Oracle requires conversion of string data to numeric values.' };
     }
 
     if (targetRequired === 'TIMESTAMP' && sourceInferred === 'VARCHAR') {
-      return { status: 'warn', label: 'Date Parsing Required', icon: '⏳', color: 'text-cyan-600 bg-cyan-50 border-cyan-100', reason: 'Use the To Date transformation for ISO conversion.' };
+      return { status: 'warn', label: 'Date Parsing Required', icon: '⏳', color: 'text-cyan-600 bg-cyan-50 border-cyan-100', reason: 'Oracle needs valid date strings or native TIMESTAMP objects.' };
     }
 
-    return { status: 'mismatch', label: 'Inconsistent Types', icon: '❌', color: 'text-rose-600 bg-rose-50 border-rose-100', reason: 'Detected potential data corruption if imported.' };
+    return {
+      status: 'mismatch',
+      label: 'Inconsistent Types',
+      icon: '❌',
+      color: 'text-rose-600 bg-rose-50 border-rose-100',
+      reason: `Mismatched: Source is ${sourceInferred || 'UNKNOWN'}, but Target requires ${targetRequired}.`
+    };
+  };
+
+  const [expandedFiles, setExpandedFiles] = useState<string[]>([]);
+  const toggleFile = (fileName: string) => {
+    setExpandedFiles(prev => prev.includes(fileName) ? prev.filter(f => f !== fileName) : [...prev, fileName]);
   };
 
   return (
@@ -198,6 +210,17 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
         >
           SQL Preview
         </button>
+        {activeTab === 'preview' && (
+          <button
+            onClick={() => {
+              console.log('Run Sync button clicked in MappingInterface');
+              onSync();
+            }}
+            className="ml-2 px-8 py-4 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl bg-emerald-500 text-white shadow-lg hover:bg-emerald-600 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2"
+          >
+            <span className="text-sm">🚀</span> Run Sync
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-hidden">
@@ -241,31 +264,72 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-5 space-y-2 scrollbar-hide bg-white/20">
-                {filteredSourceHeaders.length > 0 ? (
-                  filteredSourceHeaders.map(header => {
-                    const type = source.inferredTypes[header];
-                    return (
-                      <div
-                        key={header}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('text/plain', header);
-                          setDraggedHeader(header);
-                        }}
-                        onDragEnd={() => setDraggedHeader(null)}
-                        className={`flex items-center justify-between p-3.5 bg-white border border-slate-200 rounded-xl cursor-grab hover:border-blue-400 hover:shadow-lg hover:-translate-y-0.5 transition-all active:cursor-grabbing ${draggedHeader === header ? 'opacity-30' : 'shadow-sm'}`}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-white/20">
+                {source.fileNames.map(fileName => {
+                  const fileHeaders = source.fileHeaders[fileName] || [];
+                  const headersToShow = fileHeaders.filter(h => filteredSourceHeaders.includes(h));
+
+                  if (headersToShow.length === 0 && sourceSearch) return null;
+
+                  const isExpanded = expandedFiles.includes(fileName) || (sourceSearch && headersToShow.length > 0);
+
+                  return (
+                    <div key={fileName} className="space-y-2">
+                      <button
+                        onClick={() => toggleFile(fileName)}
+                        className="w-full flex items-center justify-between p-3 bg-slate-100 rounded-xl hover:bg-slate-200 transition-all"
                       >
-                        <span className="text-[10px] font-black text-slate-700 truncate uppercase max-w-[150px]">{header}</span>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border ${TYPE_COLORS[type]}`}>{TYPE_ICONS[type]}</span>
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <span className="text-sm shrink-0">{isExpanded ? '📂' : '📁'}</span>
+                          <span className="text-[9px] font-black text-slate-600 uppercase truncate text-left">{fileName}</span>
                         </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="text-center py-20">
-                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">No matching attributes</p>
+                        <div className="flex items-center gap-1.5 p-1 bg-white rounded-lg" onClick={e => e.stopPropagation()}>
+                          <span className="text-[8px] font-black bg-slate-50 px-1.5 py-0.5 rounded-md text-slate-400">{headersToShow.length}</span>
+                          {onRemoveFile && (
+                            <button
+                              onClick={() => {
+                                if (confirm(`Remove file "${fileName}"? This will unmap linked fields.`)) {
+                                  onRemoveFile(fileName);
+                                }
+                              }}
+                              className="text-slate-300 hover:text-rose-500 transition-colors p-0.5"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          )}
+                        </div>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="space-y-2 pl-2 border-l-2 border-slate-100 ml-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                          {headersToShow.map(header => {
+                            const type = source.inferredTypes[header];
+                            return (
+                              <div
+                                key={`${fileName}-${header}`}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData('text/plain', header);
+                                  setDraggedHeader(header);
+                                }}
+                                onDragEnd={() => setDraggedHeader(null)}
+                                className={`flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-grab hover:border-blue-400 hover:shadow-lg transition-all active:cursor-grabbing ${draggedHeader === header ? 'opacity-30' : 'shadow-sm'}`}
+                              >
+                                <span className="text-[9px] font-black text-slate-700 truncate uppercase max-w-[120px]">{header}</span>
+                                <span className={`text-[7px] font-black px-1.5 py-0.5 rounded border shrink-0 ${TYPE_COLORS[type]}`}>{TYPE_ICONS[type]}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {filteredSourceHeaders.length === 0 && (
+                  <div className="text-center py-20 grayscale opacity-40">
+                    <span className="text-2xl block mb-2">🔍</span>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">No matching attributes</p>
                   </div>
                 )}
               </div>
@@ -378,7 +442,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                             <div className="space-y-3">
                               {mapping.transformations.map((step, idx) => {
                                 const meta = TRANSFORMATION_META[step.type];
-                                const needsValue = ['constant', 'prefix', 'suffix', 'default_if_null', 'replace'].includes(step.type);
+                                const needsValue = ['constant', 'prefix', 'suffix', 'default_if_null', 'replace', 'concatenate', 'substring'].includes(step.type);
 
                                 return (
                                   <div key={step.id} className={`flex flex-col gap-3 p-4 rounded-[1.5rem] border ${meta.bg} ${meta.border} transition-all shadow-sm hover:shadow-md animate-in slide-in-from-right-2 duration-300`}>
@@ -459,6 +523,19 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
           </div>
         ) : (
           <div className="h-full overflow-auto p-8 bg-slate-50/30">
+            {/* Debug Aid: Show Raw Source Data if rows exist but might look empty */}
+            {relevantRows.length > 0 && (
+              <div className="mb-6 p-4 bg-slate-100 rounded-xl border border-slate-200">
+                <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Debug Checklist: Raw Source Record (First Match)</h4>
+                <pre className="text-[10px] font-mono text-slate-600 bg-white p-3 rounded-lg border border-slate-200 overflow-x-auto">
+                  {JSON.stringify(relevantRows[0], null, 2)}
+                </pre>
+                <p className="text-[9px] text-slate-400 mt-2">
+                  <strong>Mapped Headers:</strong> {mappedSourceHeaders.join(', ')}
+                </p>
+              </div>
+            )}
+
             <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl overflow-hidden min-w-max">
               <table className="w-full text-left border-collapse">
                 <thead>
