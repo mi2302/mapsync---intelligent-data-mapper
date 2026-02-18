@@ -4,20 +4,31 @@ export const DATA_GROUPS: DataGroup[] = [
   {
     id: 'workforce_management',
     name: 'Workforce Management',
-    icon: '📦', // Placeholder - will be replaced by API data
-    objects: [SchemaTypes.EMPLOYEE_MASTER, SchemaTypes.ASSIGNMENT, SchemaTypes.PAYROLL]
+    icon: '📦',
+    objects: [
+      { id: SchemaTypes.EMPLOYEE_MASTER, name: 'Employee Master', table: 'msai_hr_employee_master' },
+      { id: SchemaTypes.ASSIGNMENT, name: 'Assignment Records', table: 'msai_hr_assignments' },
+      { id: SchemaTypes.PAYROLL, name: 'Payroll Data', table: 'fin_payroll_run' }
+    ]
   },
   {
     id: 'accounts_payable',
     name: 'Accounts Payable',
-    icon: '📦', // Placeholder - will be replaced by API data
-    objects: [SchemaTypes.INVOICE_HEADER, SchemaTypes.INVOICE_LINES]
+    icon: '📦',
+    objects: [
+      { id: SchemaTypes.INVOICE_HEADER, name: 'Invoice Header', table: 'ap_invoice_headers' },
+      { id: SchemaTypes.INVOICE_LINES, name: 'Invoice Lines', table: 'ap_invoice_lines' }
+    ]
   },
   {
     id: 'vendor_relations',
     name: 'Vendor Relations',
-    icon: '📦', // Placeholder - will be replaced by API data
-    objects: [SchemaTypes.SUPPLIER_HEADER, SchemaTypes.SUPPLIER_SITES, SchemaTypes.SUPPLIER_TAX]
+    icon: '📦',
+    objects: [
+      { id: SchemaTypes.SUPPLIER_HEADER, name: 'Supplier Header', table: 'po_vendors' },
+      { id: SchemaTypes.SUPPLIER_SITES, name: 'Supplier Sites', table: 'po_vendor_sites' },
+      { id: SchemaTypes.SUPPLIER_TAX, name: 'Supplier Tax', table: 'ap_tax_codes' }
+    ]
   }
 ];
 

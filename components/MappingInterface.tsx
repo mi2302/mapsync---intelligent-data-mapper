@@ -339,7 +339,9 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
               <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white sticky top-0 z-10 shrink-0">
                 <div className="flex flex-col">
                   <h3 className="text-xl font-black text-slate-900 tracking-tighter uppercase">Mapping Orchestrator</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Target Entity: {schema.table_name}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                    Target Entity: {schema.table_name || schema.name || schema.id}
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -523,6 +525,42 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
           </div>
         ) : (
           <div className="h-full overflow-auto p-8 bg-slate-50/30">
+            {/* DUPLICATE CHECK BANNER */}
+            {(() => {
+              const pkFields = schema.fields.filter(f => f.is_primary);
+              if (pkFields.length > 0) {
+                const seen = new Set();
+                const dups = new Set();
+
+                previewData.forEach(row => {
+                  // row uses ID as key, not column_name
+                  const key = pkFields.map(f => String(row[f.id] || '').trim()).join('|');
+                  if (key && seen.has(key)) dups.add(key);
+                  seen.add(key);
+                });
+
+                if (dups.size > 0) {
+                  return (
+                    <div className="bg-rose-500 text-white p-6 rounded-[2rem] mb-8 shadow-xl shadow-rose-500/20 border-4 border-white animate-in zoom-in duration-300">
+                      <div className="flex items-center gap-4">
+                        <span className="text-3xl bg-white text-rose-500 w-12 h-12 rounded-full flex items-center justify-center shadow-lg">⚠️</span>
+                        <div>
+                          <h3 className="text-xl font-black uppercase tracking-tighter">Validation Error: Duplicates Detected</h3>
+                          <p className="text-[11px] font-bold opacity-90 mt-1">
+                            Found {dups.size} duplicate Primary Key(s): <span className="bg-rose-950/30 px-2 py-0.5 rounded font-mono">{Array.from(dups).slice(0, 5).join(', ')}{dups.size > 5 ? '...' : ''}</span>
+                          </p>
+                          <div className="flex items-center gap-2 mt-3">
+                            <span className="text-[9px] uppercase font-black tracking-[0.2em] bg-rose-950/30 px-3 py-1.5 rounded-lg border border-rose-400/30">Sync Blocked</span>
+                            <span className="text-[9px] uppercase font-bold opacity-75">Please fix duplicates in source file</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+              }
+              return null;
+            })()}
             {/* Debug Aid: Show Raw Source Data if rows exist but might look empty */}
             {relevantRows.length > 0 && (
               <div className="mb-6 p-4 bg-slate-100 rounded-xl border border-slate-200">

@@ -68,19 +68,33 @@ export interface SourceData {
   fileHeaders: Record<string, string[]>;
 }
 
+export interface SchemaDependency {
+  targetSchemaId: string;
+  sourceFieldId: string; // The FK in this schema
+  targetFieldId: string; // The PK in parent schema
+  type: 'ONE_TO_ONE' | 'ONE_TO_MANY';
+}
+
 export interface SchemaDefinition {
   id: SchemaType;
   name: string;
   icon: string;
   table_name: string;
   fields: TargetField[];
+  dependencies?: SchemaDependency[]; // Parent relationships
+}
+
+export interface ModuleObject {
+  id: string;
+  name: string;
+  table: string;
 }
 
 export interface DataGroup {
   id: string;
   name: string;
   icon: string;
-  objects: SchemaType[];
+  objects: ModuleObject[];
 }
 
 export interface SavedConfiguration {

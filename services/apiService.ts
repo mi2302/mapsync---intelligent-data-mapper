@@ -132,20 +132,18 @@ export const apiService = {
     }
   },
 
-  syncData: async (tableName: string, columns: string[], rows: any[]): Promise<{ success: boolean; rowsAffected?: number; message?: string }> => {
+  syncData: async (tableName: string, columns: string[], rows: any[], dryRun?: boolean): Promise<{ success: boolean; rowsAffected?: number; message?: string; query?: string; sample?: any }> => {
     try {
       const response = await fetch(`${API_URL}/sync-data`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ tableName, columns, rows })
+        body: JSON.stringify({ tableName, columns, rows, dryRun })
       });
 
       const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.message || 'Sync failed');
-      }
+      // Even on error (500), result contains useful info like SQL query
       return result;
     } catch (error: any) {
       console.error('Sync Error:', error);
@@ -186,6 +184,17 @@ export const apiService = {
     } catch (error: any) {
       console.error('Create Dynamic Table Failed:', error);
       return { success: false, message: error.message };
+    }
+  },
+
+  getRelationships: async (): Promise<any[]> => {
+    try {
+      const response = await fetch(`${API_URL}/relationships`);
+      if (!response.ok) return [];
+      return await response.json();
+    } catch (error) {
+      console.error('Fetch Relationships Failed:', error);
+      return [];
     }
   }
 };

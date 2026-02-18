@@ -46,7 +46,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
           return (
             <div key={group.id} className="bg-white rounded-[2.5rem] shadow-xl border border-slate-200 overflow-hidden flex flex-col group/card hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
               <div
-                onClick={() => onSelectSchema(group.objects[0])}
+                onClick={() => {
+                  if (group.objects.length > 0) {
+                    onSelectSchema(group.objects[0].id as SchemaType);
+                  }
+                }}
                 className="p-8 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
               >
                 <div className="flex items-center gap-4">
@@ -107,8 +111,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
               <div className="p-6 bg-slate-50 border-t border-slate-100 mt-auto">
                 <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
                   {group.objects.map(obj => (
-                    <span key={obj} className="whitespace-nowrap bg-white border border-slate-200 px-3 py-1.5 rounded-full text-[7px] font-black text-slate-500 uppercase tracking-widest shadow-sm">
-                      ● {obj.split('_')[0]}
+                    <span key={obj.id} className="whitespace-nowrap bg-white border border-slate-200 px-3 py-1.5 rounded-full text-[7px] font-black text-slate-500 uppercase tracking-widest shadow-sm">
+                      ● {obj.name}
                     </span>
                   ))}
                 </div>

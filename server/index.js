@@ -81,6 +81,38 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', datetime: new Date().toISOString() });
 });
 
+app.get('/api/relationships', async (req, res) => {
+    let connection;
+    try {
+        const dbConfig = getDbConfig();
+        connection = await oracledb.getConnection(dbConfig);
+
+        const result = await connection.execute(
+            `SELECT SOURCE_SCHEMA, SOURCE_FIELD, TARGET_SCHEMA, TARGET_FIELD, RELATION_TYPE FROM MSAI_RELATIONSHIPS`,
+            [],
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        const relationships = result.rows.map(row => ({
+            sourceSchemaId: row.SOURCE_SCHEMA,
+            sourceFieldId: row.SOURCE_FIELD,
+            targetSchemaId: row.TARGET_SCHEMA,
+            targetFieldId: row.TARGET_FIELD,
+            type: row.RELATION_TYPE
+        }));
+
+        res.json(relationships);
+    } catch (err) {
+        console.error('Error fetching relationships:', err);
+        // Return empty array on error (e.g. table missing) to avoid breaking UI
+        res.json([]);
+    } finally {
+        if (connection) {
+            try { await connection.close(); } catch (e) { }
+        }
+    }
+});
+
 app.get('/api/db-check', async (req, res) => {
     let connection;
     try {
@@ -111,7 +143,26 @@ app.get('/api/table-metadata', async (req, res) => {
         const metadata = {};
         for (const rawTableName of tableList) {
             const tableName = rawTableName.toUpperCase();
-            console.log(`Fetching metadata for table: ${tableName}`);
+            // console.log(`Fetching metadata for table: ${tableName}`);
+
+            // Fetch PK Info
+            let pkCols = [];
+            try {
+                const pkResult = await connection.execute(
+                    `SELECT cols.column_name 
+                     FROM all_constraints cons
+                     JOIN all_cons_columns cols 
+                       ON cons.constraint_name = cols.constraint_name 
+                       AND cons.owner = cols.owner
+                     WHERE cons.table_name = :tname 
+                       AND cons.constraint_type = 'P'`,
+                    [tableName],
+                    { outFormat: oracledb.OUT_FORMAT_OBJECT }
+                );
+                pkCols = pkResult.rows.map(r => r.COLUMN_NAME);
+            } catch (pkErr) {
+                console.warn(`Failed to fetch PK for ${tableName}`, pkErr);
+            }
 
             const result = await connection.execute(
                 `SELECT column_name, data_type, nullable 
@@ -134,7 +185,7 @@ app.get('/api/table-metadata', async (req, res) => {
                     type = 'BOOLEAN';
                 }
 
-                console.log(`  Col: ${col.COLUMN_NAME}, OracleType: ${oraType} -> Mapped: ${type}`);
+                // console.log(`  Col: ${col.COLUMN_NAME}, OracleType: ${oraType} -> Mapped: ${type}`);
 
                 return {
                     id: col.COLUMN_NAME,
@@ -142,6 +193,7 @@ app.get('/api/table-metadata', async (req, res) => {
                     label: col.COLUMN_NAME.replace(/_/g, ' ').split(' ').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' '),
                     type: type,
                     required: col.NULLABLE === 'N',
+                    is_primary: pkCols.includes(col.COLUMN_NAME),
                     description: `Database source: ${tableName}`
                 };
             });
@@ -229,7 +281,7 @@ function nameToId(name) {
     // Mapping legacy IDs to new standardized ones
     if (gid === 'workforce' || gid === 'workforce_management') return 'workforce_management';
     if (gid === 'payables' || gid === 'accounts_payable') return 'accounts_payable';
-    if (gid === 'suppliers' || gid === 'vendor_relations') return 'vendor_relations';
+    // if (gid === 'suppliers' || gid === 'vendor_relations') return 'vendor_relations'; // Identifying them separately now
     return gid;
 }
 
@@ -260,7 +312,11 @@ app.get('/api/modules', async (req, res) => {
                     objects: []
                 };
             }
-            groups[gid].objects.push(row.OBJECT_NAME);
+            groups[gid].objects.push({
+                id: row.OBJECT_NAME,
+                name: row.OBJECT_NAME.replace(/_/g, ' '), // Friendly name
+                table: row.TARGET_TABLE_NAME
+            });
         });
 
         res.json(Object.values(groups));
@@ -344,14 +400,20 @@ app.post('/api/registry', async (req, res) => {
         // 3. Process Modules and Links
         for (const [schemaId, mappings] of Object.entries(objectMappings)) {
             const objectName = schemaId;
-            // A. Find Module Definition in MSAI_MODULES (Fixed as per User)
+            // A. Find Module Definition in MSAI_MODULES (Case Insensitive)
             const checkModule = await connection.execute(
-                `SELECT MODULE_ID FROM MSAI_MODULES WHERE MODULE_NAME = :mname AND OBJECT_NAME = :oname`,
+                `SELECT MODULE_ID FROM MSAI_MODULES 
+                 WHERE UPPER(MODULE_NAME) = UPPER(:mname) 
+                   AND UPPER(OBJECT_NAME) = UPPER(:oname)`,
                 [moduleName, objectName]
             );
 
             if (checkModule.rows.length === 0) {
-                throw new Error(`Critical: Module definition not found for ${moduleName} / ${objectName}. Please ensure the module exists in MSAI_MODULES.`);
+                // Debugging: Fetch all to see what's available
+                const allMods = await connection.execute(`SELECT MODULE_NAME, OBJECT_NAME FROM MSAI_MODULES`);
+                console.log('DEBUG: Available Modules in DB:', allMods.rows);
+
+                throw new Error(`Critical: Module definition not found for [${moduleName}] / [${objectName}]. Available: ${JSON.stringify(allMods.rows)}`);
             }
             const moduleId = checkModule.rows[0][0];
 
@@ -363,24 +425,27 @@ app.post('/api/registry', async (req, res) => {
                 { autoCommit: false }
             );
 
-            // C. Upsert Mappings (MSAI_MAPPING_METADATA)
-            // Using MERGE based on (Registry + Object + Column) to update rather than create new
+            // C. Refresh Mappings (MSAI_MAPPING_METADATA)
+            // 1. CLEAR existing mappings for this object to ensure removed fields are deleted
+            await connection.execute(
+                `DELETE FROM MSAI_MAPPING_METADATA 
+                 WHERE REGISTRY_ID = :rid AND MODULE_NAME = :oname`,
+                [registryId, objectName],
+                { autoCommit: false }
+            );
+
+            // 2. INSERT current valid mappings
             for (const map of mappings) {
                 if (map.sourceHeader) {
                     await connection.execute(
-                        `MERGE INTO MSAI_MAPPING_METADATA t
-                         USING (SELECT :rid as rid, :oname as oname, :tgt as tgt FROM DUAL) s
-                         ON (t.REGISTRY_ID = s.rid AND t.MODULE_NAME = s.oname AND t.MAPPING_ATTRIBUTE_COLUMN = s.tgt)
-                         WHEN MATCHED THEN
-                             UPDATE SET t.SOURCE_ATTRIBUTE_HEADER = :src, t.ADDITION_LOGIC = :logic, t.REGISTRY_NAME = :rname
-                         WHEN NOT MATCHED THEN
-                             INSERT (MAPPING_ID, REGISTRY_ID, REGISTRY_NAME, MODULE_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC)
-                             VALUES (:mapid, :rid, :rname, :oname, :src, :tgt, :logic)`,
+                        `INSERT INTO MSAI_MAPPING_METADATA 
+                         (MAPPING_ID, REGISTRY_ID, REGISTRY_NAME, MODULE_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC)
+                         VALUES (:mapid, :rid, :rname, :oname, :src, :tgt, :logic)`,
                         {
-                            mapid: String(Math.floor(Math.random() * 10000000)),
+                            mapid: String(Math.floor(Math.random() * 1000000000)),
                             rid: registryId,
                             rname: registryName,
-                            oname: objectName, // Link to specific schema object
+                            oname: objectName,
                             src: map.sourceHeader,
                             tgt: map.targetFieldId,
                             logic: JSON.stringify(map.transformations || [])
@@ -549,13 +614,20 @@ app.delete('/api/registry/:id', async (req, res) => {
 });
 
 app.post('/api/sync-data', async (req, res) => {
-    const { tableName, columns, rows } = req.body;
+    const { tableName, columns, rows, dryRun } = req.body;
 
     if (!tableName || !columns || !rows || !Array.isArray(rows) || rows.length === 0) {
         return res.status(400).json({ error: 'Invalid payload. Required: tableName, columns, rows[]' });
     }
 
+    // Server-Side Duplicate Validation
+    console.log(`[DEBUG] Syncing Table: ${tableName}`);
+    console.log(`[DEBUG] Received Columns: ${JSON.stringify(columns)}`);
+
+    // Heuristic check removed. Using DB query for strict validation.
+
     let connection;
+    let sql;
     try {
         const dbConfig = getDbConfig();
         connection = await oracledb.getConnection(dbConfig);
@@ -575,6 +647,35 @@ app.post('/api/sync-data', async (req, res) => {
         const primaryKeys = pkResult.rows.map(r => r.COLUMN_NAME.toUpperCase());
         console.log(`Primary Keys detected for ${tableName}:`, primaryKeys);
 
+        // STRICT PK Validation based on Database Constraints
+        const relevantPKs = primaryKeys.filter(pk => columns.some(c => c.toUpperCase() === pk));
+
+        if (relevantPKs.length > 0) {
+            console.log(`[DB Validation] Checking duplicates on DB Keys: ${relevantPKs.join(', ')}`);
+            const seen = new Set();
+            for (const row of rows) {
+                const key = relevantPKs.map(pk => {
+                    // Find actual input column name (case-insensitive match to PK)
+                    const inputCol = columns.find(c => c.toUpperCase() === pk);
+                    if (!inputCol) return '';
+
+                    // Robust lookup for value
+                    const val = row[inputCol] || row[inputCol.toLowerCase()] || row[Object.keys(row).find(k => k.toUpperCase() === inputCol.toUpperCase())];
+                    return String(val || '').trim();
+                }).join('|');
+
+                // Only validate if we have a key (and ignore purely empty keys if generated)
+                if (key && key !== '' && seen.has(key)) {
+                    console.warn(`[DB Validation] Duplicate found: ${key} in ${tableName}`);
+                    return res.status(400).json({
+                        success: false,
+                        message: `Validation Error: Duplicate Primary Key detected for Database Constraint (${relevantPKs.join(', ')}). Value: '${key}'. Please remove duplicates.`
+                    });
+                }
+                seen.add(key);
+            }
+        }
+
         // Construct SQL with safe internal bind names (B1, B2, ...)
         const bindMapping = columns.map((c, i) => ({
             column: c.toUpperCase(),
@@ -584,7 +685,6 @@ app.post('/api/sync-data', async (req, res) => {
         const colStr = bindMapping.map(m => `"${m.column}"`).join(', ');
         const valStr = bindMapping.map(m => `:${m.bindName}`).join(', ');
 
-        let sql;
         if (primaryKeys.length > 0) {
             // Build Robust MERGE Statement
             const pkMatches = bindMapping
@@ -632,8 +732,14 @@ app.post('/api/sync-data', async (req, res) => {
                     rowObj[m.bindName] = val; // Pass native Date object
                 } else {
                     let strVal = String(val);
-                    if (strVal.length >= 10 && strVal.includes('T') && !isNaN(Date.parse(strVal))) {
-                        rowObj[m.bindName] = new Date(strVal);
+
+                    // Robust Date Parsing:
+                    // 1. Must parse successfully as a date
+                    // 2. Must contain typical date separators (- or /) to avoid converting plain years ("2023") or other numbers
+                    const timestamp = Date.parse(strVal);
+
+                    if (!isNaN(timestamp) && (strVal.includes('-') || strVal.includes('/'))) {
+                        rowObj[m.bindName] = new Date(timestamp);
                     } else {
                         rowObj[m.bindName] = strVal;
                     }
@@ -641,6 +747,18 @@ app.post('/api/sync-data', async (req, res) => {
             });
             return rowObj;
         });
+
+        if (dryRun) {
+            console.log(`[Preview] Only generating SQL for ${tableName}`);
+            await connection.rollback();
+            res.json({
+                success: true,
+                rowsAffected: 0,
+                query: sql,
+                sample: bindData.length > 0 ? bindData[0] : null
+            });
+            return;
+        }
 
         const result = await connection.executeMany(sql, bindData, {
             autoCommit: true,
@@ -651,14 +769,15 @@ app.post('/api/sync-data', async (req, res) => {
         // Explicit commit
         await connection.commit();
 
-        res.json({ success: true, rowsAffected: result.rowsAffected });
+        res.json({ success: true, rowsAffected: result.rowsAffected, query: sql });
 
     } catch (err) {
         console.error('Bulk Sync Error:', err);
         res.status(500).json({
             status: 'error',
             message: err.message,
-            sqlError: err.offset ? `Error at pos ${err.offset}` : undefined
+            sqlError: err.offset ? `Error at pos ${err.offset}` : undefined,
+            query: sql
         });
     } finally {
         if (connection) {

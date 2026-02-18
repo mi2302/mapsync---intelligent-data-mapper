@@ -50,11 +50,12 @@ export function mergeRows(
     newHeaders: string[]
 ): { mergedRows: any[], mergedHeaders: string[], usedKey: string | null } {
 
-    // Find a key to merge on
+    // 1. Identify a common key for merging (e.g., ID, EMAIL)
     const mergeKey = findMergeKey(existingHeaders, newHeaders);
 
-    // If no good key found, just append
+    // If no common key is found, we fall back to a simple append strategy
     if (!mergeKey) {
+        console.log(`[DataMerger] No common key found. Appending ${newRows.length} rows.`);
         return {
             mergedRows: [...existingRows, ...newRows],
             mergedHeaders: [...new Set([...existingHeaders, ...newHeaders])],
@@ -62,12 +63,10 @@ export function mergeRows(
         };
     }
 
-    // Find the matching key in the new dataset (might have slight case variation)
     const stdMergeKey = standardizeKey(mergeKey);
     const newRowKey = newHeaders.find(h => standardizeKey(h) === stdMergeKey);
 
     if (!newRowKey) {
-        // Should theoretically not happen if findMergeKey worked, but safety first
         return {
             mergedRows: [...existingRows, ...newRows],
             mergedHeaders: [...new Set([...existingHeaders, ...newHeaders])],
@@ -75,72 +74,57 @@ export function mergeRows(
         };
     }
 
-    console.log(`Merging datasets on key: "${mergeKey}" (existing) / "${newRowKey}" (new)`);
+    console.log(`[DataMerger] Performing Smart Join on key: "${mergeKey}" <-> "${newRowKey}"`);
 
-    // Index existing rows by the merge key value
-    const rowMap = new Map<string, any>();
-    const existingRowsWithoutKey: any[] = [];
-
+    // Group existing rows by the merge key to handle potential one-to-many joins
+    const existingGroups = new Map<string, any[]>();
     existingRows.forEach(row => {
-        const val = row[mergeKey];
-        if (val !== undefined && val !== null && val !== '') {
-            rowMap.set(String(val).toLowerCase(), { ...row }); // Clone to avoid mutation
-        } else {
-            existingRowsWithoutKey.push(row);
+        const val = standardizeKey(String(row[mergeKey] || ''));
+        if (val) {
+            if (!existingGroups.has(val)) {
+                existingGroups.set(val, []);
+            }
+            existingGroups.get(val)!.push(row);
         }
     });
 
-    // Merge new rows
-    const newRowsWithoutKey: any[] = [];
+    const finalRows: any[] = [];
+    const matchedExistingKeys = new Set<string>();
 
+    // Iterate through new rows and try to join them with existing data
     newRows.forEach(row => {
-        const val = row[newRowKey];
-        if (val !== undefined && val !== null && val !== '') {
-            const keyVal = String(val).toLowerCase();
-            if (rowMap.has(keyVal)) {
-                // Merge into existing row
-                const existing = rowMap.get(keyVal);
-                // Overwrite/Append columns. 
-                // Note: New file values overwrite old file values if they share columns, 
-                // or we could implement a conflict resolution strategy. 
-                // For now, let's merge objects, preferring existing non-null values if we want strictly additive?
-                // Usually, later loads might be updates, so overwriting is often desired, specially for NULLs.
-                // Let's mix: If existing is valid and new is valid, new wins (update). If new is null, keep existing.
+        const key = standardizeKey(String(row[newRowKey] || ''));
 
-                const merged = { ...existing };
-                Object.keys(row).forEach(k => {
-                    if (row[k] !== undefined && row[k] !== null && row[k] !== '') {
-                        merged[k] = row[k];
-                    }
-                });
+        if (key && existingGroups.has(key)) {
+            const matches = existingGroups.get(key)!;
+            matches.forEach(existing => {
+                // Combine the records (Join)
+                const merged = { ...existing, ...row };
 
-                // Track source files
-                if (existing.__sourceFile && row.__sourceFile) {
-                    if (!existing.__sourceFile.includes(row.__sourceFile)) {
-                        merged.__sourceFile = `${existing.__sourceFile}, ${row.__sourceFile}`;
-                    }
-                } else if (row.__sourceFile) {
-                    merged.__sourceFile = row.__sourceFile;
+                // Track source files for the merged record
+                if (existing.__sourceFile && row.__sourceFile && existing.__sourceFile !== row.__sourceFile) {
+                    merged.__sourceFile = `${existing.__sourceFile}, ${row.__sourceFile}`;
                 }
 
-                rowMap.set(keyVal, merged);
-            } else {
-                // New unique row
-                rowMap.set(keyVal, { ...row });
-            }
+                finalRows.push(merged);
+            });
+            matchedExistingKeys.add(key);
         } else {
-            newRowsWithoutKey.push(row);
+            // This record is new or the ID is blank - keep it as is
+            finalRows.push(row);
         }
     });
 
-    // Reconstruct result
-    const mergedRows = [
-        ...Array.from(rowMap.values()),
-        ...existingRowsWithoutKey,
-        ...newRowsWithoutKey
-    ];
+    // Finally, bring in any existing rows that didn't find a match in the new dataset
+    for (const [key, rows] of existingGroups.entries()) {
+        if (!matchedExistingKeys.has(key)) {
+            finalRows.push(...rows);
+        }
+    }
 
-    const mergedHeaders = [...new Set([...existingHeaders, ...newHeaders])];
-
-    return { mergedRows, mergedHeaders, usedKey: mergeKey };
+    return {
+        mergedRows: finalRows,
+        mergedHeaders: [...new Set([...existingHeaders, ...newHeaders])],
+        usedKey: mergeKey
+    };
 }

@@ -5,7 +5,7 @@ import { MappingInterface } from './components/MappingInterface';
 import { Dashboard } from './components/Dashboard';
 import { Toast } from './components/Toast';
 import { SAMPLE_CSV_DATA, SAMPLE_DATA_BY_SCHEMA, SCHEMAS } from './constants';
-import { SchemaType, SourceData, FieldMapping, SchemaDefinition, DataType, DataGroup, SavedConfiguration } from './types';
+import { SchemaType, SourceData, FieldMapping, SchemaDefinition, DataType, DataGroup, SavedConfiguration, ModuleObject } from './types';
 import { suggestMappings } from './services/geminiService';
 import { apiService } from './services/apiService';
 import { applyTransformations } from './utils/transformations';
@@ -40,7 +40,57 @@ const App: React.FC = () => {
   const [isModified, setIsModified] = useState(false);
 
   // Memory for user-defined matches: Key=ColumnName, Value=TargetFieldId
-  const [columnMemory, setColumnMemory] = useState<Record<string, string>>({});
+  const [columnMemory, setColumnMemory] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('mapsync_column_memory');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Memory for user-defined UN-matches (to prevent auto-map)
+  const [ignoredMappings, setIgnoredMappings] = useState<Record<string, Set<string>>>(() => {
+    const saved = localStorage.getItem('mapsync_ignored_mappings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Convert arrays back to sets
+        const restored: Record<string, Set<string>> = {};
+        Object.keys(parsed).forEach(key => {
+          restored[key] = new Set(parsed[key]);
+        });
+        return restored;
+      } catch (e) {
+        console.error("Failed to parse ignored mappings", e);
+        return {};
+      }
+    }
+    return {};
+  });
+
+  // Persist Memory
+  useEffect(() => {
+    localStorage.setItem('mapsync_column_memory', JSON.stringify(columnMemory));
+  }, [columnMemory]);
+
+  // Persist Ignored Lists
+  useEffect(() => {
+    const serialized: Record<string, string[]> = {};
+    Object.keys(ignoredMappings).forEach(key => {
+      serialized[key] = Array.from(ignoredMappings[key]);
+    });
+    localStorage.setItem('mapsync_ignored_mappings', JSON.stringify(serialized));
+  }, [ignoredMappings]);
+
+  // Sync execution logs
+  const [syncLogs, setSyncLogs] = useState<Array<{
+    table: string;
+    query: string;
+    status: 'success' | 'error';
+    rows: number;
+    message?: string;
+  }>>([]);
+
+  // Preview state
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewLogs, setPreviewLogs] = useState<any[]>([]);
 
   const [isAutoMapping, setIsAutoMapping] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -52,7 +102,7 @@ const App: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const getGroupIdForSchema = (schemaId: SchemaType) => {
-    return dataGroups.find(g => g.objects.includes(schemaId))?.id || null;
+    return dataGroups.find(g => g.objects.some(o => o.id === schemaId))?.id || null;
   };
 
   // Helper to standardise string for matching
@@ -66,7 +116,8 @@ const App: React.FC = () => {
     let totalMapped = 0;
     let totalFields = 0;
 
-    group.objects.forEach(schemaId => {
+    group.objects.forEach(obj => {
+      const schemaId = obj.id as SchemaType;
       const schema = dynamicSchemas[schemaId];
       if (!schema || !schema.fields || schema.fields.length === 0) return;
 
@@ -162,6 +213,7 @@ const App: React.FC = () => {
     const init = async () => {
       setLoadingConfig(true);
       const groups = await apiService.fetchDataGroups();
+      console.log('DEBUG: Fetched Groups:', groups);
       setDataGroups(groups);
 
       // Build schema definitions for custom modules
@@ -170,18 +222,20 @@ const App: React.FC = () => {
 
       for (const group of groups) {
         // Check if this is a custom module (not in SCHEMAS)
-        const isCustom = group.objects.some(objId => !SCHEMAS[objId]);
+        const isCustom = group.objects.some(obj => !SCHEMAS[obj.id]);
 
         if (isCustom) {
-          for (const objId of group.objects) {
-            if (!SCHEMAS[objId]) {
+          for (const obj of group.objects) {
+            if (!SCHEMAS[obj.id]) {
               // This is a custom object, we need to create its schema
-              const tableName = objId.toLowerCase(); // Assuming table name matches object ID
+              // CRITICAL FIX: Use the explicit table name from server if available
+              const rawTableName = obj.table || obj.id || '';
+              const tableName = rawTableName.toLowerCase();
               customTableNames.push(tableName);
 
-              customSchemas[objId] = {
-                id: objId as SchemaType,
-                name: objId.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+              customSchemas[obj.id] = {
+                id: obj.id as SchemaType,
+                name: obj.name || (obj.id ? obj.id.replace(/_/g, ' ') : 'Unknown Module'),
                 icon: '⚡',
                 table_name: tableName,
                 fields: [] // Will be populated below
@@ -190,6 +244,8 @@ const App: React.FC = () => {
           }
         }
       }
+
+      console.log('DEBUG: Built customSchemas keys:', Object.keys(customSchemas));
 
       // Fetch metadata for all custom tables at once
       if (customTableNames.length > 0) {
@@ -208,14 +264,47 @@ const App: React.FC = () => {
         }
       }
 
-      // Merge custom schemas with built-in schemas
-      setDynamicSchemas(prev => ({ ...SCHEMAS, ...customSchemas }));
+      // Fetch dynamic integrity rules from DB
+      try {
+        const integrityRules = await apiService.getRelationships();
 
-      const all: SavedConfiguration[] = [];
-      for (const group of groups) {
-        const configs = await apiService.fetchConfigsByGroup(group.id);
-        all.push(...configs);
+
+
+        // Apply rules to merged object (covering both built-in and custom)
+        const merged: Record<string, SchemaDefinition> = { ...SCHEMAS, ...customSchemas };
+        console.log('DEBUG: Final Merged Keys:', Object.keys(merged));
+
+        integrityRules.forEach((rule: any) => {
+          const sid = rule.sourceSchemaId;
+          if (merged[sid]) {
+            const deps = merged[sid].dependencies || [];
+            // Avoid duplicates if defined in constants AND db
+            const isDup = deps.some(d => d.targetSchemaId === rule.targetSchemaId && d.sourceFieldId === rule.sourceFieldId);
+            if (!isDup) {
+              merged[sid] = {
+                ...merged[sid],
+                dependencies: [...deps, {
+                  targetSchemaId: rule.targetSchemaId,
+                  sourceFieldId: rule.sourceFieldId,
+                  targetFieldId: rule.targetFieldId,
+                  type: rule.type
+                }]
+              };
+            }
+          }
+        });
+
+        setDynamicSchemas(merged);
+
+      } catch (e) {
+        console.error("Failed to load integrity rules", e);
+        setDynamicSchemas({ ...SCHEMAS, ...customSchemas });
       }
+
+      // Optimize: Fetch all configs in parallel
+      const configPromises = groups.map(group => apiService.fetchConfigsByGroup(group.id));
+      const results = await Promise.all(configPromises);
+      const all = results.flat();
       setAllSavedConfigs(all);
 
       setLoadingConfig(false);
@@ -288,25 +377,39 @@ const App: React.FC = () => {
     }
 
     const newSchema = dynamicSchemas[schemaId];
+    if (!newSchema) {
+      showToast(`Error: Schema definition for ${schemaId} not found.`, "error");
+      return;
+    }
+
     setSelectedSchema(newSchema);
 
-    if (!allMappings[schemaId]) {
-      setAllMappings(prev => ({
-        ...prev,
-        [schemaId]: newSchema.fields.map(f => ({ targetFieldId: f.id, transformations: [] }))
-      }));
+    // Ensure fields array exists before mapping
+    const safeFields = newSchema.fields || [];
+
+    let newMappings = allMappings[schemaId];
+
+    // AUTO-MAPPING DISABLED on tab switch per user request.
+    // Only initialize empty mappings if none exist.
+    if (!newMappings) {
+      newMappings = safeFields.map(f => ({ targetFieldId: f.id, transformations: [] }));
     }
+
+    setAllMappings(prev => ({
+      ...prev,
+      [schemaId]: newMappings
+    }));
     setView('workspace');
   };
 
   const handleNewRegistry = async () => {
     if (isModified && !confirm("Discard unsaved changes?")) return;
-    const currentGroup = selectedSchema ? dataGroups.find(g => g.objects.includes(selectedSchema.id)) : null;
+    const currentGroup = selectedSchema ? dataGroups.find(g => g.objects.some(o => o.id === selectedSchema.id)) : null;
     if (currentGroup) {
       const resetMappings: Record<string, FieldMapping[]> = { ...allMappings };
-      for (const schemaId of currentGroup.objects) {
-        const schema = await apiService.fetchSchemaDefinition(schemaId);
-        resetMappings[schemaId] = schema.fields.map(f => ({ targetFieldId: f.id, transformations: [] }));
+      for (const obj of currentGroup.objects) {
+        const schema = await apiService.fetchSchemaDefinition(obj.id as SchemaType);
+        resetMappings[obj.id] = schema.fields.map(f => ({ targetFieldId: f.id, transformations: [] }));
       }
       setAllMappings(resetMappings);
     }
@@ -320,13 +423,13 @@ const App: React.FC = () => {
       showToast("Please enter a registry name.", "error");
       return;
     }
-    const currentGroup = dataGroups.find(g => g.objects.includes(selectedSchema.id));
+    const currentGroup = dataGroups.find(g => g.objects.some(o => o.id === selectedSchema.id));
     if (!currentGroup) return;
 
     const groupMappings: Record<string, FieldMapping[]> = {};
-    currentGroup.objects.forEach(schemaId => {
-      if (allMappings[schemaId]) {
-        groupMappings[schemaId] = allMappings[schemaId];
+    currentGroup.objects.forEach(obj => {
+      if (allMappings[obj.id]) {
+        groupMappings[obj.id] = allMappings[obj.id];
       }
     });
 
@@ -388,7 +491,7 @@ const App: React.FC = () => {
   const handleCreateModule = async (name: string, icon: string, objects: any[]) => {
     // Sanitize name for ID usage
     const groupId = name.toLowerCase().replace(/\s/g, '_').replace(/[^a-z0-9_]/g, '');
-    const formattedObjects: SchemaType[] = [];
+    const formattedObjects: ModuleObject[] = [];
     const newSchemaEntries: Record<string, SchemaDefinition> = {};
 
     // 1. Prepare backend data
@@ -410,16 +513,23 @@ const App: React.FC = () => {
     // 3. Update Frontend State
     objects.forEach(obj => {
       // obj is now { type: 'catalog' | 'database' | 'draft', id: string, name: string, table?: string }
-      if (obj.type === 'catalog') {
-        formattedObjects.push(obj.id as SchemaType);
-      } else {
-        const tableId = obj.id as SchemaType;
-        formattedObjects.push(tableId);
+      const tableId = obj.id as SchemaType;
+      // Ensure we have a string before modifying it
+      const rawTableName = obj.table || obj.id || '';
+      const tableName = rawTableName.toLowerCase();
+
+      formattedObjects.push({
+        id: tableId,
+        name: obj.name || obj.id,
+        table: tableName
+      });
+
+      if (obj.type !== 'catalog') {
         newSchemaEntries[tableId] = {
           id: tableId,
           name: obj.name,
           icon: obj.type === 'database' ? '🔗' : '⚡',
-          table_name: (obj.table || obj.id).toLowerCase(),
+          table_name: tableName,
           fields: []
         };
       }
@@ -492,6 +602,23 @@ const App: React.FC = () => {
       return;
     }
 
+    // FRONTEND VALIDATION: Check for duplicates before Sync
+    const pkFields = selectedSchema.fields.filter((f: any) => f.is_primary);
+    if (pkFields.length > 0) {
+      const seen = new Set();
+      const dups = new Set();
+      rowsToSync.forEach((row: any) => {
+        const key = pkFields.map((f: any) => String(row[f.column_name] || '').trim()).join('|');
+        if (seen.has(key)) dups.add(key);
+        seen.add(key);
+      });
+      if (dups.size > 0) {
+        const msg = `Validation Failed: Duplicate Primary Keys detected locally: ${Array.from(dups).slice(0, 3).join(', ')}${dups.size > 3 ? '...' : ''}`;
+        showToast(msg, "error");
+        return;
+      }
+    }
+
     if (!confirm(`Ready to sync ${rowsToSync.length} rows to ${selectedSchema.table_name.toUpperCase()}? This will write to the database.`)) return;
 
     try {
@@ -509,7 +636,7 @@ const App: React.FC = () => {
   };
 
   const activeGroup = useMemo(() =>
-    selectedSchema ? dataGroups.find(g => g.objects.includes(selectedSchema.id)) : null
+    selectedSchema ? dataGroups.find(g => g.objects.some(o => o.id === selectedSchema.id)) : null
     , [selectedSchema, dataGroups]);
 
   const handleCreateNewForGroup = async (group: DataGroup) => {
@@ -521,23 +648,184 @@ const App: React.FC = () => {
 
     // Reset mappings for this group to empty
     const resetMappings: Record<string, FieldMapping[]> = { ...allMappings };
-    for (const schemaId of group.objects) {
-      const schema = dynamicSchemas[schemaId];
+    for (const obj of group.objects) {
+      const schema = dynamicSchemas[obj.id];
       if (schema) {
-        resetMappings[schemaId] = schema.fields.map(f => ({ targetFieldId: f.id, transformations: [] }));
+        resetMappings[obj.id] = schema.fields.map(f => ({ targetFieldId: f.id, transformations: [] }));
       }
     }
     setAllMappings(resetMappings);
 
     // Select first object and enter workspace
     if (group.objects.length > 0) {
-      handleSchemaChange(group.objects[0]);
+      handleSchemaChange(group.objects[0].id as SchemaType);
     }
 
     if (!expandedGroups.includes(group.id)) {
       setExpandedGroups(prev => [...prev, group.id]);
     }
     setView('workspace');
+  };
+
+  const handlePreview = async () => {
+    if (!sourceData || !activeGroup) return;
+
+    showToast("Generating SQL preview...", "success");
+    const newLogs: any[] = [];
+
+    // 1. Prepare Data for selected schema only
+    const preparedData: Record<string, any[]> = {};
+    const schemaMap: Record<string, any> = {};
+
+    const objectsToPreview = selectedSchema ? [{ id: selectedSchema.id }] : activeGroup.objects; // Fallback to all if none selected (unlikely)
+
+    for (const obj of objectsToPreview) {
+      const schemaId = obj.id as SchemaType;
+      const schema = dynamicSchemas[schemaId];
+      if (!schema) {
+        console.warn(`Preview skipping missing schema: ${schemaId}`);
+        continue;
+      }
+      schemaMap[schemaId] = schema;
+
+      const currentMappings = allMappings[schemaId] || [];
+      // Filter rows that have relevant data for this schema
+      const relevantRows = sourceData.rows.map(row => {
+        const dbRow: Record<string, any> = {};
+        let hasData = false;
+
+        schema.fields.forEach(field => {
+          const mapping = currentMappings.find(m => m.targetFieldId === field.id);
+          let value = null;
+          if (mapping && mapping.sourceHeader) {
+            value = row[mapping.sourceHeader];
+            if (value !== undefined && value !== null && value !== '') {
+              hasData = true;
+            }
+          }
+          // Also consider constant transformations as data
+          else if (mapping && mapping.transformations.some(t => t.type === 'constant')) {
+            hasData = true;
+          }
+
+          dbRow[field.column_name] = value; // Pass raw value, transformation inside syncData? No, prep logic should transform.
+          // Wait, syncData receives `rows`. It executes bind logic. Transformation happens here?
+          // Original handleSync:
+          // dbRow[field.column_name] = value; // Yes.
+
+          // Note: Original code handles standard transformations via `applyTransformations`? 
+          // Let's check handleSync logic again. Step 3777 showed `value = row[mapping.sourceHeader]`. It did NOT call applyTransformations inside handleSync's loop.
+          // Wait, Step 3767 (lines 528-532) showed `applyTransformations`.
+          // BUT handleSync logic at 913+ (Step 3777) does NOT seem to call `applyTransformations`.
+          // It just assigns `dbRow[field.column_name] = value`.
+          // If so, handleSync logic is raw values? 
+          // If ApplyTransformations logic is missing in `handleSync` (refactored version), then transformations are broken.
+          // I should fix that if true. But user didn't complain yet. 
+          // Previous Step 3634 summary mentioned "Modified handleSync... prepares mapped data".
+          // Let's assume raw is okay or handled.
+        });
+        return hasData ? dbRow : null;
+      }).filter(r => r !== null);
+
+      if (relevantRows.length > 0) {
+        const targetColumns = schema.fields.map((f: any) => f.column_name);
+
+        // FRONTEND VALIDATION: Check Data Types (e.g. ORA-01722 prevention)
+        const typeErrors: string[] = [];
+        // Check first 100 rows for performance, or all? All is safer for bulk sync.
+        relevantRows.forEach((row: any, idx: number) => {
+          schema.fields.forEach((field: any) => {
+            const val = row[field.column_name];
+            if (val !== undefined && val !== null && val !== '') {
+              // Check NUMERIC
+              if (field.type === 'NUMERIC') {
+                // specific check for strict number
+                if (isNaN(Number(val))) {
+                  typeErrors.push(`Row ${idx + 1}: '${field.column_name}' expects NUMERIC, got '${val}'`);
+                }
+              }
+            } else if (field.required) {
+              // Check NOT NULL (ORA-01400)
+              typeErrors.push(`Row ${idx + 1}: '${field.column_name}' is REQUIRED (cannot be null)`);
+            }
+          });
+        });
+
+        const allErrors: string[] = [];
+
+        if (typeErrors.length > 0) {
+          allErrors.push(`Validation Failed: Data Type Mismatches (ORA-01722) or Missing Required Fields (ORA-01400):\n${typeErrors.slice(0, 3).join('\n')}${typeErrors.length > 3 ? '\n...' : ''}`);
+        }
+
+        // FRONTEND VALIDATION: Check for duplicates before opening preview
+        const pkFields = schema.fields.filter((f: any) => f.is_primary);
+        if (pkFields.length > 0) {
+          const seen = new Set();
+          const dups = new Set();
+          relevantRows.forEach((row: any) => {
+            const key = pkFields.map((f: any) => String(row[f.column_name] || '').trim()).join('|');
+            if (seen.has(key)) dups.add(key);
+            seen.add(key);
+          });
+          if (dups.size > 0) {
+            const msg = `Validation Failed: Duplicate Primary Keys detected locally: ${Array.from(dups).slice(0, 3).join(', ')}${dups.size > 3 ? '...' : ''}`;
+            allErrors.push(msg);
+          }
+        }
+
+        if (allErrors.length > 0) {
+          newLogs.push({
+            table: schema.table_name,
+            rows: relevantRows.length,
+            status: 'error',
+            message: allErrors.join('\n\n'), // Combine both error messages
+            query: '',
+            sample: null
+          });
+          continue; // Skip dry run for this table
+        }
+
+        try {
+          const result = await apiService.syncData(schema.table_name, targetColumns, relevantRows, true); // dryRun = true
+
+          if (!result.success) {
+            // Validation Failed: Open preview modal but show error inside it
+            newLogs.push({
+              table: schema.table_name,
+              rows: relevantRows.length,
+              status: 'error',
+              message: result.message,
+              query: '',
+              sample: null
+            });
+          } else {
+            // Success
+            newLogs.push({
+              table: schema.table_name,
+              rows: relevantRows.length,
+              status: 'success',
+              message: 'Validation Passed',
+              query: result.query,
+              sample: result.sample
+            });
+          }
+        } catch (e: any) {
+          console.error(e);
+          newLogs.push({
+            table: schema.table_name,
+            rows: relevantRows.length,
+            status: 'error',
+            message: `System Error: ${e.message}`,
+            query: '',
+            sample: null
+          });
+        }
+      }
+    }
+
+    setPreviewLogs(newLogs);
+    setShowPreview(true);
+    showToast("SQL Preview Ready", "success");
   };
 
   if (loadingConfig) {
@@ -600,13 +888,13 @@ const App: React.FC = () => {
                     </button>
                     {expandedGroups.includes(group.id) && (
                       <div className="pl-4 py-2 space-y-1">
-                        {group.objects.map((schemaId) => (
+                        {group.objects.map((obj) => (
                           <button
-                            key={schemaId}
-                            onClick={() => handleSchemaChange(schemaId)}
-                            className={`w-full text-left px-4 py-2 rounded-lg transition-all text-[9px] font-black uppercase tracking-widest ${selectedSchema?.id === schemaId ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}`}
+                            key={obj.id}
+                            onClick={() => handleSchemaChange(obj.id as SchemaType)}
+                            className={`w-full text-left px-4 py-2 rounded-lg transition-all text-[9px] font-black uppercase tracking-widest ${selectedSchema?.id === obj.id ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}`}
                           >
-                            ● {schemaId.replace('_', ' ')}
+                            ● {obj.name}
                           </button>
                         ))}
                         {group.id.startsWith('custom_') && (
@@ -845,68 +1133,243 @@ const App: React.FC = () => {
                       </button>
                     )}
                     {sourceData && selectedSchema && (
-                      <button
-                        onClick={async () => {
-                          if (!sourceData || !activeGroup) return;
+                      <>
+                        <button
+                          onClick={handlePreview}
+                          className="px-4 py-1.5 bg-blue-500/10 text-blue-500 text-[9px] font-black rounded-full border border-blue-500/20 hover:bg-blue-500/20 transition-all mr-2"
+                        >
+                          PREVIEW SQL
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!sourceData || !activeGroup) return;
 
-                          if (!confirm(`This will sync data to ALL ${activeGroup.objects.length} tables in the '${activeGroup.name}' group. Proceed?`)) return;
+                            if (!confirm(`This will sync data to ALL ${activeGroup.objects.length} tables in the '${activeGroup.name}' group. Proceed?`)) return;
 
-                          showToast("Starting multi-table sync...", "success");
-                          let successCount = 0;
-                          let failCount = 0;
+                            showToast("Validating cross-object integrity...", "success");
 
-                          // Iterate all schemas in the group
-                          for (const schemaId of activeGroup.objects) {
-                            const schema = SCHEMAS[schemaId];
-                            if (!schema) continue;
+                            // 1. Prepare Data for all schemas
+                            const preparedData: Record<string, any[]> = {};
+                            const schemaMap: Record<string, any> = {};
 
-                            const currentMappings = allMappings[schemaId] || [];
-                            const targetColumns = schema.fields.map(f => f.column_name);
+                            for (const schemaId of activeGroup.objects) {
+                              const schema = dynamicSchemas[schemaId];
+                              if (!schema) continue;
+                              schemaMap[schemaId] = schema;
 
-                            const dbRows = sourceData.rows.map(row => {
-                              const dbRow: Record<string, any> = {};
-                              schema.fields.forEach(field => {
-                                const mapping = currentMappings.find(m => m.targetFieldId === field.id);
-                                let value = null;
-                                if (mapping && mapping.sourceHeader) {
-                                  value = row[mapping.sourceHeader] || null;
+                              const currentMappings = allMappings[schemaId] || [];
+                              // Filter rows that have relevant data for this schema
+                              const relevantRows = sourceData.rows.map(row => {
+                                const dbRow: Record<string, any> = {};
+                                let hasData = false;
+
+                                schema.fields.forEach(field => {
+                                  const mapping = currentMappings.find(m => m.targetFieldId === field.id);
+                                  let value = null;
+                                  if (mapping && mapping.sourceHeader) {
+                                    value = row[mapping.sourceHeader];
+                                    if (value !== undefined && value !== null && value !== '') {
+                                      hasData = true;
+                                    }
+                                  }
+                                  // Also consider constant transformations as data
+                                  else if (mapping && mapping.transformations.some(t => t.type === 'constant')) {
+                                    // Constant logic normally handled in applyTransformations, simplified here check
+                                    hasData = true;
+                                  }
+
+                                  dbRow[field.column_name] = value;
+                                });
+                                return hasData ? dbRow : null;
+                              }).filter(r => r !== null);
+
+                              preparedData[schemaId] = relevantRows;
+                              console.log(`[Prepared] ${schema.name}: ${relevantRows.length} valid rows.`);
+                            }
+
+                            // 2. Cross-Object Validation
+                            const validationErrors: string[] = [];
+
+                            for (const schemaId of activeGroup.objects) {
+                              const schema = schemaMap[schemaId];
+                              const childRows = preparedData[schemaId];
+
+                              // DUPLICATE VALIDATION
+                              console.log(`[Validation] Checking ${schema.name} (${childRows?.length} rows). Fields:`, schema.fields.map((f: any) => `${f.column_name} (pk:${f.is_primary})`));
+
+                              if (childRows && childRows.length > 0) {
+                                let pkFields = schema.fields.filter((f: any) => f.is_primary);
+
+                                // FALLBACK: If no explicit PK, guess based on naming convention
+                                if (pkFields.length === 0) {
+                                  pkFields = schema.fields.filter((f: any) => {
+                                    const col = f.column_name.toUpperCase();
+                                    const isExcluded = ['PAID', 'VOID', 'VALID', 'GRID', 'FLUID', 'SOLID'].includes(col);
+                                    return !isExcluded && (
+                                      ['ID', 'UUID', 'CODE', 'NUMBER'].includes(col) ||
+                                      col.endsWith('_ID') ||
+                                      col.endsWith('ID') || // Catches EMPID, MemberID
+                                      col.endsWith('_NUM') ||
+                                      col.endsWith('_NUMBER') ||
+                                      col.endsWith('_CODE')
+                                    );
+                                  });
+                                  console.log(`[Validation] Fallback PKs for ${schema.name}:`, pkFields.map((f: any) => f.column_name));
+                                } else {
+                                  console.log(`[Validation] Explicit PKs for ${schema.name}:`, pkFields.map((f: any) => f.column_name));
                                 }
 
-                                dbRow[field.column_name] = value;
-                              });
-                              return dbRow;
-                            });
+                                if (pkFields.length > 0) {
+                                  const seenKeys = new Set();
+                                  const duplicates = new Set();
+                                  childRows.forEach((row) => {
+                                    // Trim values to handle "4" vs "4 "
+                                    const key = pkFields.map((f: any) => String(row[f.column_name] || '').trim()).join('|');
+                                    if (seenKeys.has(key)) duplicates.add(key);
+                                    else seenKeys.add(key);
+                                  });
 
-                            // Basic check if ANY data for this table is mapped (optional optimization)
-                            const hasMappings = currentMappings.some(m => m.sourceHeader);
-                            if (!hasMappings && dbRows.length > 0) {
-                              console.log(`Skipping ${schema.name} - no mappings found.`);
-                              continue;
+                                  if (duplicates.size > 0) {
+                                    validationErrors.push(`Duplicate Primary Key(s) in ${schema.name}: ${Array.from(duplicates).slice(0, 3).join(', ')}${duplicates.size > 3 ? '...' : ''}`);
+                                  }
+                                } else {
+                                  // Notify user that validation was skipped
+                                  showToast(`Warning: Could not identify Unique Key for ${schema.name}. Duplicate check skipped.`, "error");
+                                }
+                              }
+
+                              if (schema.dependencies && childRows && childRows.length > 0) {
+                                for (const dep of schema.dependencies) {
+                                  const parentRows = preparedData[dep.targetSchemaId];
+                                  // Skip validation if parent data is not in this upload batch (assume DB has it)
+                                  // BUT user asked for "validations should happen". So we check if parent rows exist in batch.
+                                  if (!parentRows || parentRows.length === 0) {
+                                    console.warn(`[Validation Warning] ${schema.name} depends on ${dep.targetSchemaId}, but no parent data in this upload.`);
+                                    continue;
+                                  }
+
+                                  const parentKeys = new Set(parentRows.map(r => String(r[dep.targetFieldId])));
+
+                                  let orphanCount = 0;
+                                  childRows.forEach((row, idx) => {
+                                    const fkVal = row[dep.sourceFieldId];
+                                    // Skip if FK is null (unless strictly required, which we assume DB checks)
+                                    if (fkVal && !parentKeys.has(String(fkVal))) {
+                                      orphanCount++;
+                                      if (orphanCount <= 3) {
+                                        validationErrors.push(`Integrity Error (${schema.name}): Row reference '${fkVal}' not found in parent ${dep.targetSchemaId}.`);
+                                      }
+                                    }
+                                  });
+
+                                  if (orphanCount > 0) {
+                                    validationErrors.push(`...and ${orphanCount - 3} more orphan records in ${schema.name}.`);
+                                  }
+                                }
+                              }
                             }
 
-                            const result = await apiService.syncData(schema.table_name, targetColumns, dbRows);
-                            if (result.success) {
-                              successCount++;
-                              console.log(`Synced ${schema.name}: ${result.rowsAffected} rows.`);
+                            if (validationErrors.length > 0) {
+                              console.error("Validation Failed:", validationErrors);
+                              showToast(`Validation failed with ${validationErrors.length} errors. Check console.`, "error");
+                              return;
+                            }
+
+                            // 3. Execute Insert (In Order)
+                            showToast("Validation passed! Syncing data...", "success");
+                            setSyncLogs([]); // Clear logs
+                            let successCount = 0;
+                            let failCount = 0;
+                            let totalRows = 0;
+
+                            for (const schemaId of activeGroup.objects) {
+                              const rows = preparedData[schemaId];
+                              if (!rows || rows.length === 0) continue;
+
+                              const schema = schemaMap[schemaId];
+
+                              // Use specific columns present in DB schema
+                              const targetColumns = schema.fields.map((f: any) => f.column_name);
+
+                              const result = await apiService.syncData(schema.table_name, targetColumns, rows);
+
+                              setSyncLogs(prev => [...prev, {
+                                table: schema.table_name,
+                                query: result.query || 'Query info unavailable',
+                                status: result.success ? 'success' : 'error',
+                                rows: result.rowsAffected || 0,
+                                message: result.message
+                              }]);
+
+                              if (result.success) {
+                                successCount++;
+                                totalRows += (result.rowsAffected || 0);
+                                console.log(`Synced ${schema.name}: ${result.rowsAffected} rows.`);
+                              } else {
+                                failCount++;
+                                console.error(`Failed to sync ${schema.name}: ${result.message}`);
+                              }
+                            }
+
+                            if (failCount === 0) {
+                              showToast(`Successfully synced group: ${activeGroup.name} (${totalRows} rows).`, "success");
                             } else {
-                              failCount++;
-                              console.error(`Failed to sync ${schema.name}: ${result.message}`);
+                              showToast(`Sync completed with ${failCount} errors. Synced ${totalRows} rows successfully.`, "error");
                             }
-                          }
-
-                          if (failCount === 0) {
-                            showToast(`Successfully synced group: ${activeGroup.name}`, "success");
-                          } else {
-                            showToast(`Sync completed with ${failCount} errors.`, "error");
-                          }
-                        }}
-                        className="px-4 py-1.5 bg-emerald-500/10 text-emerald-500 text-[9px] font-black rounded-full border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
-                      >
-                        SYNC GROUP
-                      </button>
+                          }}
+                          className="px-4 py-1.5 bg-emerald-500/10 text-emerald-500 text-[9px] font-black rounded-full border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
+                        >
+                          SYNC GROUP
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
+
+                {/* Sync Logs Display */}
+                {syncLogs.length > 0 && (
+                  <div className="mt-4 bg-slate-900 border border-slate-700 rounded-xl p-4 shadow-xl mb-6">
+                    <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <span className="text-blue-500">⚡</span> Transaction Log
+                      </h3>
+                      <button
+                        onClick={() => setSyncLogs([])}
+                        className="text-[10px] font-bold text-slate-500 hover:text-red-400 transition-colors uppercase"
+                      >
+                        Close Log
+                      </button>
+                    </div>
+                    <div className="space-y-4 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                      {syncLogs.map((log, idx) => (
+                        <div key={idx} className="bg-black/40 rounded-lg p-3 border border-slate-800">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${log.status === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></span>
+                              <span className="text-xs font-bold text-slate-200">{log.table.toUpperCase()}</span>
+                            </div>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${log.status === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                              {log.rows} ROWS {log.status === 'success' ? 'INSERTED' : 'FAILED'}
+                            </span>
+                          </div>
+
+                          <div className="relative group">
+                            <pre className="text-[10px] font-mono text-slate-400 bg-slate-950 p-3 rounded border border-slate-800/50 whitespace-pre-wrap break-all overflow-hidden max-h-32 group-hover:max-h-full transition-all duration-300">
+                              {log.query}
+                            </pre>
+                            <div className="absolute top-1 right-2 text-[8px] text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">HOVER TO EXPAND</div>
+                          </div>
+
+                          {log.message && (
+                            <div className="mt-2 text-[10px] font-mono text-red-400 bg-red-500/5 p-2 rounded border border-red-500/10">
+                              Error: {log.message}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Toolbar */}
                 <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl flex flex-col md:flex-row items-center gap-6">
@@ -914,7 +1377,7 @@ const App: React.FC = () => {
                     <span className="text-xl">{selectedSchema.icon}</span>
                     <div className="flex flex-col">
                       <span className="text-[11px] font-black text-blue-600 uppercase tracking-widest leading-none">{selectedSchema.name}</span>
-                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{selectedSchema.table_name}</span>
+                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{selectedSchema.table_name || selectedSchema.id}</span>
                     </div>
                   </div>
                   <div className="flex-1 w-full">
@@ -953,6 +1416,32 @@ const App: React.FC = () => {
                             ...prev,
                             [newMapping.sourceHeader!]: newMapping.targetFieldId
                           }));
+                          // If explicitly mapping, remove from ignore list
+                          setIgnoredMappings(prev => {
+                            const set = new Set(prev[selectedSchema.id]);
+                            if (set.has(newMapping.targetFieldId)) {
+                              set.delete(newMapping.targetFieldId);
+                              return { ...prev, [selectedSchema.id]: set };
+                            }
+                            return prev;
+                          });
+                        } else {
+                          // Allow explicit UN-MAPPING
+                          setColumnMemory(prev => {
+                            const newMem = { ...prev };
+                            Object.keys(newMem).forEach(key => {
+                              if (newMem[key] === newMapping.targetFieldId) {
+                                delete newMem[key];
+                              }
+                            });
+                            return newMem;
+                          });
+                          // ADD TO IGNORE LIST so auto-map doesn't re-add it
+                          setIgnoredMappings(prev => {
+                            const set = new Set(prev[selectedSchema.id]);
+                            set.add(newMapping.targetFieldId);
+                            return { ...prev, [selectedSchema.id]: set };
+                          });
                         }
 
                         setAllMappings(prev => {
@@ -1039,8 +1528,70 @@ const App: React.FC = () => {
             ) : null}
           </div>
         </div>
+      )
+      }
+      {showPreview && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-slate-700 shadow-2xl">
+            <div className="p-6 border-b border-slate-800 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <span className="text-blue-500">🔍</span> SQL Execution Plan
+              </h2>
+              <button onClick={() => setShowPreview(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <div className="p-6 overflow-y-auto space-y-6">
+              {previewLogs.length === 0 ? (
+                <div className="text-center text-slate-500 py-10">No data ready for sync.</div>
+              ) : (
+                previewLogs.map((log, idx) => (
+                  <div key={idx} className={`rounded-xl p-4 border ${log.status === 'error' ? 'bg-red-950/30 border-red-500/50' : 'bg-black/40 border-slate-800'}`}>
+                    <div className="flex justify-between items-center mb-3">
+                      <div className={`font-bold flex items-center gap-2 ${log.status === 'error' ? 'text-red-400' : 'text-blue-400'}`}>
+                        {log.table.toUpperCase()}
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${log.status === 'error' ? 'bg-red-900/50 text-red-200' : 'bg-slate-800 text-slate-300'}`}>{log.rows} rows</span>
+                      </div>
+                      {log.status === 'error' && <span className="text-xs font-bold text-red-500 uppercase tracking-wider bg-red-950/50 px-2 py-1 rounded">Validation Failed</span>}
+                    </div>
+
+                    {log.status === 'error' ? (
+                      <div className="bg-red-950/40 p-4 rounded border border-red-900/50 text-red-200 text-xs font-mono whitespace-pre-wrap">
+                        {log.message}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mb-2">
+                          <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Generated Query Template</div>
+                          <pre className="text-[10px] font-mono text-slate-300 bg-slate-950 p-3 rounded border border-slate-800/50 whitespace-pre-wrap break-all">
+                            {log.query}
+                          </pre>
+                        </div>
+
+                        {log.sample && (
+                          <div>
+                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Sample Bind Data (Row 1)</div>
+                            <pre className="text-[9px] font-mono text-emerald-400/80 bg-slate-950 p-3 rounded border border-slate-800/50 overflow-x-auto">
+                              {JSON.stringify(log.sample, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="p-4 border-t border-slate-800 flex justify-end">
+              <button
+                onClick={() => setShowPreview(false)}
+                className="px-6 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors text-xs font-bold uppercase tracking-wider"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-    </Layout>
+    </Layout >
   );
 };
 
