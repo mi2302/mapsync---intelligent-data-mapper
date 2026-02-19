@@ -37,17 +37,33 @@ function getDbConfig() {
     }
 
     const connectString = `${host}:${port}/${service}`;
-    return { user, password, connectString };
+    return {
+        user,
+        password,
+        connectString,
+        poolMin: 0, // Relax min pool to avoid startup pressure
+        poolMax: 10,
+        poolIncrement: 1,
+        poolTimeout: 60,
+        poolPingInterval: 30 // Keep connections alive
+    };
+}
+
+let poolPromise;
+
+async function getPool() {
+    if (!poolPromise) {
+        poolPromise = oracledb.createPool(getDbConfig());
+    }
+    return poolPromise;
 }
 
 async function initializeDatabase() {
     let connection;
     try {
-        const dbConfig = getDbConfig();
-        const { user, connectString } = dbConfig;
-        console.log('Attempting connection with:', { user, connectString });
-        connection = await oracledb.getConnection(dbConfig);
-        console.log('Connected to Oracle Database');
+        const pool = await getPool();
+        connection = await pool.getConnection(); // Get from pool
+        console.log('Connected to Oracle Database via Pool');
 
         // Robust check for ICON column in MSAI_MODULES
         try {
@@ -84,8 +100,8 @@ app.get('/api/health', (req, res) => {
 app.get('/api/relationships', async (req, res) => {
     let connection;
     try {
-        const dbConfig = getDbConfig();
-        connection = await oracledb.getConnection(dbConfig);
+        const pool = await getPool();
+        connection = await pool.getConnection();
 
         const result = await connection.execute(
             `SELECT SOURCE_SCHEMA, SOURCE_FIELD, TARGET_SCHEMA, TARGET_FIELD, RELATION_TYPE FROM MSAI_RELATIONSHIPS`,
@@ -103,26 +119,8 @@ app.get('/api/relationships', async (req, res) => {
 
         res.json(relationships);
     } catch (err) {
-        console.error('Error fetching relationships:', err);
-        // Return empty array on error (e.g. table missing) to avoid breaking UI
+        // Table might be missing initially - return empty array
         res.json([]);
-    } finally {
-        if (connection) {
-            try { await connection.close(); } catch (e) { }
-        }
-    }
-});
-
-app.get('/api/db-check', async (req, res) => {
-    let connection;
-    try {
-        const dbConfig = getDbConfig();
-        connection = await oracledb.getConnection(dbConfig);
-        const result = await connection.execute('SELECT 1 FROM DUAL');
-        res.json({ status: 'connected', database: 'oracle', result: result.rows[0][0] });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ status: 'error', message: err.message });
     } finally {
         if (connection) {
             try { await connection.close(); } catch (err) { console.error(err); }
@@ -130,18 +128,43 @@ app.get('/api/db-check', async (req, res) => {
     }
 });
 
-app.get('/api/table-metadata', async (req, res) => {
-    const { tables } = req.query;
-    if (!tables) return res.status(400).json({ error: 'Tables parameter required' });
-
-    const tableList = tables.split(',').map(t => t.trim().toUpperCase());
+// Check Database Connection (Restored legacy endpoint name)
+app.get('/api/db-check', async (req, res) => {
     let connection;
     try {
-        const dbConfig = getDbConfig();
-        connection = await oracledb.getConnection(dbConfig);
+        const pool = await getPool();
+        connection = await pool.getConnection();
+        await connection.execute('SELECT 1 FROM DUAL');
+        res.json({ status: 'connected', database: 'oracle', success: true }); // Return compatibility format
+    } catch (err) {
+        console.error('DB Check Error:', err);
+        res.status(500).json({ status: 'error', message: err.message, success: false });
+    } finally {
+        if (connection) {
+            try { await connection.close(); } catch (err) { console.error(err); }
+        }
+    }
+});
 
+// Alias for consistency
+app.get('/api/check-db', async (req, res) => {
+    res.redirect('/api/db-check');
+});
+
+// Fetch Table Metadata (Primary Logic)
+app.post('/api/fetch-metadata', async (req, res) => {
+    const { tableNames } = req.body;
+    if (!tableNames || !Array.isArray(tableNames)) {
+        return res.status(400).json({ error: 'Invalid payload. Expecting { tableNames: [] }' });
+    }
+
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
         const metadata = {};
-        for (const rawTableName of tableList) {
+
+        for (const rawTableName of tableNames) {
             const tableName = rawTableName.toUpperCase();
             // console.log(`Fetching metadata for table: ${tableName}`);
 
@@ -149,12 +172,12 @@ app.get('/api/table-metadata', async (req, res) => {
             let pkCols = [];
             try {
                 const pkResult = await connection.execute(
-                    `SELECT cols.column_name 
+                    `SELECT cols.column_name
                      FROM all_constraints cons
-                     JOIN all_cons_columns cols 
-                       ON cons.constraint_name = cols.constraint_name 
+                     JOIN all_cons_columns cols
+                       ON cons.constraint_name = cols.constraint_name
                        AND cons.owner = cols.owner
-                     WHERE cons.table_name = :tname 
+                     WHERE cons.table_name = :tname
                        AND cons.constraint_type = 'P'`,
                     [tableName],
                     { outFormat: oracledb.OUT_FORMAT_OBJECT }
@@ -165,9 +188,9 @@ app.get('/api/table-metadata', async (req, res) => {
             }
 
             const result = await connection.execute(
-                `SELECT column_name, data_type, nullable 
-                 FROM all_tab_columns 
-                 WHERE table_name = :tname 
+                `SELECT column_name, data_type, nullable
+                 FROM all_tab_columns
+                 WHERE table_name = :tname
                  ORDER BY column_id`,
                 [tableName],
                 { outFormat: oracledb.OUT_FORMAT_OBJECT }
@@ -213,8 +236,8 @@ app.get('/api/table-metadata', async (req, res) => {
 app.get('/api/list-tables', async (req, res) => {
     let connection;
     try {
-        const dbConfig = getDbConfig();
-        connection = await oracledb.getConnection(dbConfig);
+        const pool = await getPool();
+        connection = await pool.getConnection();
         const result = await connection.execute(
             `SELECT table_name 
              FROM all_tables 
@@ -245,8 +268,8 @@ app.post('/api/create-dynamic-table', async (req, res) => {
 
     let connection;
     try {
-        const dbConfig = getDbConfig();
-        connection = await oracledb.getConnection(dbConfig);
+        const pool = await getPool();
+        connection = await pool.getConnection();
 
         const columnDefs = columns.map(col => {
             let typeStr = 'VARCHAR2(4000)';
@@ -288,8 +311,8 @@ function nameToId(name) {
 app.get('/api/modules', async (req, res) => {
     let connection;
     try {
-        const dbConfig = getDbConfig();
-        connection = await oracledb.getConnection(dbConfig);
+        const pool = await getPool();
+        connection = await pool.getConnection();
 
         const result = await connection.execute(
             `SELECT MODULE_NAME, OBJECT_NAME, TARGET_TABLE_NAME, 
@@ -336,28 +359,32 @@ app.post('/api/modules', async (req, res) => {
 
     let connection;
     try {
-        const dbConfig = getDbConfig();
-        connection = await oracledb.getConnection(dbConfig);
+        const pool = await getPool();
+        connection = await pool.getConnection();
 
         for (const obj of objects) {
-            const moduleId = `MOD_${moduleName.substring(0, 3).toUpperCase()}_${obj.id.toUpperCase()}`;
-            await connection.execute(
-                `MERGE INTO MSAI_MODULES t
-                 USING (SELECT :mid as mid, :mname as mname, :oname as oname, :tname as tname, :icon as icon FROM DUAL) s
-                 ON (t.MODULE_NAME = s.mname AND t.OBJECT_NAME = s.oname)
-                 WHEN MATCHED THEN
-                     UPDATE SET t.TARGET_TABLE_NAME = s.tname, t.ICON = s.icon
-                 WHEN NOT MATCHED THEN
-                     INSERT (MODULE_ID, MODULE_NAME, OBJECT_NAME, TARGET_TABLE_NAME, ICON)
-                     VALUES (s.mid, s.mname, s.oname, s.tname, s.icon)`,
-                {
-                    mid: moduleId,
-                    mname: moduleName,
-                    oname: obj.id,
-                    tname: obj.table,
-                    icon: icon || '📦'
-                }
+            // Check if exists
+            const check = await connection.execute(
+                `SELECT MODULE_ID FROM MSAI_MODULES 
+                 WHERE MODULE_NAME = :mname AND OBJECT_NAME = :oname`,
+                [moduleName, obj.id.toUpperCase()]
             );
+
+            if (check.rows.length > 0) {
+                // Update
+                await connection.execute(
+                    `UPDATE MSAI_MODULES SET TARGET_TABLE_NAME = :tname, ICON = :icon 
+                     WHERE MODULE_ID = :mid`,
+                    { tname: obj.table, icon: icon || '📦', mid: check.rows[0][0] }
+                );
+            } else {
+                // Insert with Sequence
+                await connection.execute(
+                    `INSERT INTO MSAI_MODULES (MODULE_ID, MODULE_NAME, OBJECT_NAME, TARGET_TABLE_NAME, ICON)
+                     VALUES (MSAI_MODULE_SEQ.NEXTVAL, :mname, :oname, :tname, :icon)`,
+                    { mname: moduleName, oname: obj.id.toUpperCase(), tname: obj.table, icon: icon || '📦' }
+                );
+            }
         }
 
         await connection.commit();
@@ -372,30 +399,51 @@ app.post('/api/modules', async (req, res) => {
 
 // Save Registry Configuration (Full Hierarchy)
 app.post('/api/registry', async (req, res) => {
-    const { registryId, registryName, moduleName, objectMappings } = req.body;
-    console.log(`Saving Registry: ${registryName} (ID: ${registryId})`);
+    let { registryId, registryName, moduleName, objectMappings } = req.body;
 
     let connection;
     try {
-        const dbConfig = getDbConfig();
-        connection = await oracledb.getConnection(dbConfig);
+        const pool = await getPool();
+        connection = await pool.getConnection();
 
-        // 1. Upsert Registry Header (Using MERGE to avoid "new records" if exists)
-        await connection.execute(
-            `MERGE INTO MSAI_REGISTRY t
-             USING (SELECT :id as rid, :name as rname, :mod as mname FROM DUAL) s
-             ON (t.REGISTRY_ID = s.rid)
-             WHEN MATCHED THEN
-                 UPDATE SET t.REGISTRY_NAME = s.rname, t.MODULE_NAME = s.mname
-             WHEN NOT MATCHED THEN
-                 INSERT (REGISTRY_ID, REGISTRY_NAME, MODULE_NAME)
-                 VALUES (s.rid, s.rname, s.mname)`,
-            { id: registryId, name: registryName, mod: moduleName },
-            { autoCommit: false }
-        );
+        if (registryId === 'undefined' || registryId === 'null') registryId = null;
+
+        // 1. Handle Registry ID (Insert or Update)
+        let finalRegistryId = registryId;
+
+        if (!registryId) {
+            // New Registry - Get Sequence
+            const seqResult = await connection.execute(`SELECT MSAI_REGISTRY_SEQ.NEXTVAL FROM DUAL`);
+            // Ensure we handle both Array and Object output formats safely
+            if (Array.isArray(seqResult.rows[0])) {
+                finalRegistryId = seqResult.rows[0][0];
+            } else {
+                // If named, it's likely NEXTVAL
+                finalRegistryId = seqResult.rows[0].NEXTVAL;
+            }
+            console.log('Generated New Registry ID:', finalRegistryId);
+
+            if (!finalRegistryId) throw new Error('Failed to generate Registry ID from Sequence');
+
+            await connection.execute(
+                `INSERT INTO MSAI_REGISTRY (REGISTRY_ID, REGISTRY_NAME, MODULE_NAME)
+                 VALUES (:id, :name, :mod)`,
+                { id: finalRegistryId, name: registryName, mod: moduleName },
+                { autoCommit: false }
+            );
+        } else {
+            // Existing - Update
+            await connection.execute(
+                `UPDATE MSAI_REGISTRY SET REGISTRY_NAME = :name, MODULE_NAME = :mod WHERE REGISTRY_ID = :id`,
+                { name: registryName, mod: moduleName, id: registryId },
+                { autoCommit: false }
+            );
+        }
+
+        console.log(`Saving Registry: ${registryName} (ID: ${finalRegistryId})`);
 
         // 2. Clear old links (We keep mappings but refresh relations)
-        await connection.execute(`DELETE FROM MSAI_REGISTRY_MODULES WHERE REGISTRY_ID = :id`, [registryId], { autoCommit: false });
+        await connection.execute(`DELETE FROM MSAI_REGISTRY_MODULES WHERE REGISTRY_ID = :id`, [finalRegistryId], { autoCommit: false });
 
         // 3. Process Modules and Links
         for (const [schemaId, mappings] of Object.entries(objectMappings)) {
@@ -404,7 +452,7 @@ app.post('/api/registry', async (req, res) => {
             const checkModule = await connection.execute(
                 `SELECT MODULE_ID FROM MSAI_MODULES 
                  WHERE UPPER(MODULE_NAME) = UPPER(:mname) 
-                   AND UPPER(OBJECT_NAME) = UPPER(:oname)`,
+                 AND UPPER(OBJECT_NAME) = UPPER(:oname)`,
                 [moduleName, objectName]
             );
 
@@ -417,11 +465,11 @@ app.post('/api/registry', async (req, res) => {
             }
             const moduleId = checkModule.rows[0][0];
 
-            // B. Link Registry to Module in MSAI_REGISTRY_MODULES
-            const linkId = String(Math.floor(Math.random() * 10000000));
+            // B. Link Registry to Module in MSAI_REGISTRY_MODULES using Sequence
             await connection.execute(
-                `INSERT INTO MSAI_REGISTRY_MODULES (LINK_ID, REGISTRY_ID, MODULE_ID) VALUES (:lid, :rid, :mid)`,
-                { lid: linkId, rid: registryId, mid: moduleId },
+                `INSERT INTO MSAI_REGISTRY_MODULES (LINK_ID, REGISTRY_ID, MODULE_ID) 
+                 VALUES (MSAI_LINK_SEQ.NEXTVAL, :rid, :mid)`,
+                { rid: finalRegistryId, mid: moduleId },
                 { autoCommit: false }
             );
 
@@ -429,21 +477,20 @@ app.post('/api/registry', async (req, res) => {
             // 1. CLEAR existing mappings for this object to ensure removed fields are deleted
             await connection.execute(
                 `DELETE FROM MSAI_MAPPING_METADATA 
-                 WHERE REGISTRY_ID = :rid AND MODULE_NAME = :oname`,
-                [registryId, objectName],
+                 WHERE REGISTRY_ID = :rid AND OBJECT_NAME = :oname`,
+                [finalRegistryId, objectName],
                 { autoCommit: false }
             );
 
-            // 2. INSERT current valid mappings
+            // 2. INSERT current valid mappings using Sequence
             for (const map of mappings) {
                 if (map.sourceHeader) {
                     await connection.execute(
                         `INSERT INTO MSAI_MAPPING_METADATA 
-                         (MAPPING_ID, REGISTRY_ID, REGISTRY_NAME, MODULE_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC)
-                         VALUES (:mapid, :rid, :rname, :oname, :src, :tgt, :logic)`,
+                         (MAPPING_ID, REGISTRY_ID, REGISTRY_NAME, OBJECT_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC)
+                         VALUES (MSAI_MAPPING_SEQ.NEXTVAL, :rid, :rname, :oname, :src, :tgt, :logic)`,
                         {
-                            mapid: String(Math.floor(Math.random() * 1000000000)),
-                            rid: registryId,
+                            rid: finalRegistryId,
                             rname: registryName,
                             oname: objectName,
                             src: map.sourceHeader,
@@ -457,7 +504,8 @@ app.post('/api/registry', async (req, res) => {
         }
 
         await connection.commit();
-        res.json({ success: true, message: 'Registry saved successfully' });
+        // Return success with the NEW ID so frontend can update state
+        res.json({ success: true, message: 'Registry saved successfully', registryId: finalRegistryId });
     } catch (err) {
         console.error('Save Registry Error:', err);
         if (connection) {
@@ -491,23 +539,29 @@ async function buildRegistryConfigs(connection, regRows) {
 
         // Fetch Mappings
         const mapResult = await connection.execute(
-            `SELECT MODULE_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC
+            `SELECT OBJECT_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC
               FROM MSAI_MAPPING_METADATA
               WHERE REGISTRY_ID = :rid`,
             [regId],
             { outFormat: oracledb.OUT_FORMAT_OBJECT }
         );
 
+        const mappingsByObject = {};
+        for (const m of mapResult.rows) {
+            const objName = m.OBJECT_NAME;
+            if (!mappingsByObject[objName]) mappingsByObject[objName] = [];
+            mappingsByObject[objName].push({
+                sourceHeader: m.SOURCE_ATTRIBUTE_HEADER,
+                targetFieldId: m.MAPPING_ATTRIBUTE_COLUMN,
+                transformations: m.ADDITION_LOGIC ? JSON.parse(m.ADDITION_LOGIC) : []
+            });
+        }
+
+        // Assign to schemaIds
         for (const mod of modulesResult.rows) {
             const schemaId = mod.OBJECT_NAME;
-            // Filter mappings belonging to THIS specific object
-            objectMappings[schemaId] = mapResult.rows
-                .filter(m => m.MODULE_NAME === schemaId)
-                .map(m => ({
-                    sourceHeader: m.SOURCE_ATTRIBUTE_HEADER,
-                    targetFieldId: m.MAPPING_ATTRIBUTE_COLUMN,
-                    transformations: m.ADDITION_LOGIC ? JSON.parse(m.ADDITION_LOGIC) : []
-                }));
+            // Get mappings specifically for this object
+            objectMappings[schemaId] = mappingsByObject[schemaId] || [];
         }
 
         // Map stored Module Name back to Frontend Group ID
@@ -527,8 +581,8 @@ async function buildRegistryConfigs(connection, regRows) {
 app.get('/api/registry', async (req, res) => {
     let connection;
     try {
-        const dbConfig = getDbConfig();
-        connection = await oracledb.getConnection(dbConfig);
+        const pool = await getPool();
+        connection = await pool.getConnection();
 
         const regResult = await connection.execute(
             `SELECT REGISTRY_ID, REGISTRY_NAME, MODULE_NAME FROM MSAI_REGISTRY`,
@@ -553,8 +607,8 @@ app.get('/api/modules/:moduleName/registries', async (req, res) => {
     const { moduleName } = req.params;
     let connection;
     try {
-        const dbConfig = getDbConfig();
-        connection = await oracledb.getConnection(dbConfig);
+        const pool = await getPool();
+        connection = await pool.getConnection();
 
         // Find match in MSAI_MODULES to get more names
         const findNames = await connection.execute(
@@ -593,11 +647,13 @@ app.delete('/api/registry/:id', async (req, res) => {
     const { id } = req.params;
     let connection;
     try {
-        const dbConfig = getDbConfig();
-        connection = await oracledb.getConnection(dbConfig);
+        const pool = await getPool();
+        connection = await pool.getConnection();
+
         await connection.execute(`DELETE FROM MSAI_MAPPING_METADATA WHERE REGISTRY_ID = :id`, [id], { autoCommit: false });
         await connection.execute(`DELETE FROM MSAI_REGISTRY_MODULES WHERE REGISTRY_ID = :id`, [id], { autoCommit: false });
         await connection.execute(`DELETE FROM MSAI_REGISTRY WHERE REGISTRY_ID = :id`, [id], { autoCommit: false });
+
         await connection.commit();
         res.json({ success: true });
     } catch (err) {
@@ -629,8 +685,8 @@ app.post('/api/sync-data', async (req, res) => {
     let connection;
     let sql;
     try {
-        const dbConfig = getDbConfig();
-        connection = await oracledb.getConnection(dbConfig);
+        const pool = await getPool();
+        connection = await pool.getConnection();
 
         // 1. Fetch Primary Keys for the table to enable MERGE (UPSERT)
         const pkResult = await connection.execute(
@@ -723,8 +779,16 @@ app.post('/api/sync-data', async (req, res) => {
         // Map rows to the safe bind names
         const bindData = rows.map((row) => {
             const rowObj = {};
-            bindMapping.forEach(m => {
-                const val = row[m.column] || row[m.column.toLowerCase()] || row[columns.find(c => c.toUpperCase() === m.column)];
+            bindMapping.forEach((m, idx) => {
+                const colName = columns[idx]; // original column name from request
+                // Try multiple casing strategies to find the value in the row object
+                let val = row[colName] ?? row[colName.toLowerCase()] ?? row[colName.toUpperCase()];
+
+                // If still undefined, search case-insensitively
+                if (val === undefined) {
+                    const key = Object.keys(row).find(k => k.toLowerCase() === colName.toLowerCase());
+                    if (key) val = row[key];
+                }
 
                 if (val === undefined || val === null || val === '') {
                     rowObj[m.bindName] = null;
@@ -732,13 +796,9 @@ app.post('/api/sync-data', async (req, res) => {
                     rowObj[m.bindName] = val; // Pass native Date object
                 } else {
                     let strVal = String(val);
-
-                    // Robust Date Parsing:
-                    // 1. Must parse successfully as a date
-                    // 2. Must contain typical date separators (- or /) to avoid converting plain years ("2023") or other numbers
+                    // Simple date heuristic check
                     const timestamp = Date.parse(strVal);
-
-                    if (!isNaN(timestamp) && (strVal.includes('-') || strVal.includes('/'))) {
+                    if (!isNaN(timestamp) && (strVal.includes('-') || strVal.includes('/')) && strVal.length > 5) {
                         rowObj[m.bindName] = new Date(timestamp);
                     } else {
                         rowObj[m.bindName] = strVal;
@@ -750,7 +810,7 @@ app.post('/api/sync-data', async (req, res) => {
 
         if (dryRun) {
             console.log(`[Preview] Only generating SQL for ${tableName}`);
-            await connection.rollback();
+            await connection.rollback(); // Just to be safe
             res.json({
                 success: true,
                 rowsAffected: 0,
@@ -764,20 +824,18 @@ app.post('/api/sync-data', async (req, res) => {
             autoCommit: true,
         });
 
-        console.log('🎉 SYNC COMPLETE. Result:', result);
-
-        // Explicit commit
-        await connection.commit();
-
-        res.json({ success: true, rowsAffected: result.rowsAffected, query: sql });
+        console.log(`🎉 SYNC COMPLETE for ${tableName}. Rows affected: ${result.rowsAffected}`);
+        res.json({ success: true, rowsAffected: result.rowsAffected });
 
     } catch (err) {
         console.error('Bulk Sync Error:', err);
+        if (connection) {
+            try { await connection.rollback(); } catch (rbErr) { console.error('Rollback Error:', rbErr); }
+        }
         res.status(500).json({
             status: 'error',
             message: err.message,
-            sqlError: err.offset ? `Error at pos ${err.offset}` : undefined,
-            query: sql
+            sqlError: err.offset ? `Error at pos ${err.offset}` : undefined
         });
     } finally {
         if (connection) {

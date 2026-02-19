@@ -443,6 +443,7 @@ const App: React.FC = () => {
     try {
       const result = await apiService.saveMappingConfiguration({
         id: activeConfigId || undefined,
+        groupName: currentGroup.name,
         ...configToSave
       });
 
@@ -741,12 +742,12 @@ const App: React.FC = () => {
               if (field.type === 'NUMERIC') {
                 // specific check for strict number
                 if (isNaN(Number(val))) {
-                  typeErrors.push(`Row ${idx + 1}: '${field.column_name}' expects NUMERIC, got '${val}'`);
+                  typeErrors.push(`Row ${idx + 1}: Field '${field.label}' expects a number but contains '${val}'`);
                 }
               }
             } else if (field.required) {
               // Check NOT NULL (ORA-01400)
-              typeErrors.push(`Row ${idx + 1}: '${field.column_name}' is REQUIRED (cannot be null)`);
+              typeErrors.push(`Row ${idx + 1}: Field '${field.label}' is mandatory but currently empty.`);
             }
           });
         });
@@ -754,7 +755,7 @@ const App: React.FC = () => {
         const allErrors: string[] = [];
 
         if (typeErrors.length > 0) {
-          allErrors.push(`Validation Failed: Data Type Mismatches (ORA-01722) or Missing Required Fields (ORA-01400):\n${typeErrors.slice(0, 3).join('\n')}${typeErrors.length > 3 ? '\n...' : ''}`);
+          allErrors.push(`We found some data format issues in your file:\n${typeErrors.slice(0, 3).join('\n')}${typeErrors.length > 3 ? '\n...and more.' : ''}`);
         }
 
         // FRONTEND VALIDATION: Check for duplicates before opening preview
@@ -768,7 +769,7 @@ const App: React.FC = () => {
             seen.add(key);
           });
           if (dups.size > 0) {
-            const msg = `Validation Failed: Duplicate Primary Keys detected locally: ${Array.from(dups).slice(0, 3).join(', ')}${dups.size > 3 ? '...' : ''}`;
+            const msg = `Duplicate records found in your file based on Primary Keys: ${Array.from(dups).slice(0, 3).join(', ')}${dups.size > 3 ? '...' : ''}`;
             allErrors.push(msg);
           }
         }
@@ -978,6 +979,8 @@ const App: React.FC = () => {
 
                       // AUTO-MAPPING TRIGGER
                       // Automatically run intelligent mapping whenever new data is loaded
+                      // DISABLED per user request (User wants manual control via AI button only)
+                      /*
                       if (selectedSchema) {
                         // Calculate Data Density
                         const densityStats: Record<string, number> = {};
@@ -1028,6 +1031,7 @@ const App: React.FC = () => {
                         const mappedCount = Object.keys(intelligentMappings).length;
                         showToast(`🚀 Auto-mapped ${mappedCount} fields for ${selectedSchema.name}`, "success");
                       }
+                      */
 
                       showToast(`Loaded ${combinedFileNames.length} file(s) total.`);
                     } catch (err: any) {
@@ -1257,13 +1261,13 @@ const App: React.FC = () => {
                                     if (fkVal && !parentKeys.has(String(fkVal))) {
                                       orphanCount++;
                                       if (orphanCount <= 3) {
-                                        validationErrors.push(`Integrity Error (${schema.name}): Row reference '${fkVal}' not found in parent ${dep.targetSchemaId}.`);
+                                        validationErrors.push(`Missing Relationship (${schema.name}): The record '${fkVal}' doesn't exist in the '${dep.targetSchemaId}' list.`);
                                       }
                                     }
                                   });
 
                                   if (orphanCount > 0) {
-                                    validationErrors.push(`...and ${orphanCount - 3} more orphan records in ${schema.name}.`);
+                                    validationErrors.push(`...and ${orphanCount - 3} more missing relationships in ${schema.name}.`);
                                   }
                                 }
                               }
@@ -1293,12 +1297,21 @@ const App: React.FC = () => {
 
                               const result = await apiService.syncData(schema.table_name, targetColumns, rows);
 
+                              const friendlyError = (msg: string) => {
+                                if (msg.includes('ORA-00001')) return 'Duplicate record found in database (Unique Constraint).';
+                                if (msg.includes('ORA-01400')) return 'A required field is empty in the database.';
+                                if (msg.includes('ORA-01722')) return 'Invalid number format detected.';
+                                if (msg.includes('ORA-02291')) return 'Related parent record not found.';
+                                if (msg.includes('ORA-12899')) return 'Text content is too long for this field.';
+                                return msg;
+                              };
+
                               setSyncLogs(prev => [...prev, {
                                 table: schema.table_name,
                                 query: result.query || 'Query info unavailable',
                                 status: result.success ? 'success' : 'error',
                                 rows: result.rowsAffected || 0,
-                                message: result.message
+                                message: friendlyError(result.message)
                               }]);
 
                               if (result.success) {

@@ -54,17 +54,18 @@ export const apiService = {
 
   // Save Mapping Configuration
   saveMappingConfiguration: async (
-    config: Omit<SavedConfiguration, 'id' | 'createdAt'> & { id?: string }
+    config: Omit<SavedConfiguration, 'id' | 'createdAt'> & { id?: string, groupName?: string }
   ): Promise<{ success: boolean; config: SavedConfiguration }> => {
     try {
-      // Use human-readable group name as moduleName
+      // Use human-readable group name: explicit override OR lookup in static list OR fallback to ID
       const normalizedGroupId = config.groupId.toLowerCase().replace(/_management$/, '').replace(/_payable$/, 's');
-      const groupName = DATA_GROUPS.find(g => {
+
+      const groupName = config.groupName || DATA_GROUPS.find(g => {
         const standardGid = g.id.toLowerCase().replace(/_management$/, '').replace(/_payable$/, 's');
         return standardGid === normalizedGroupId || g.id === config.groupId;
       })?.name || config.groupId;
       const payload = {
-        registryId: config.id || Math.floor(Math.random() * 1000000),
+        registryId: config.id, // Let backend generate if null
         registryName: config.name,
         moduleName: groupName,
         objectMappings: config.objectMappings
@@ -79,7 +80,7 @@ export const apiService = {
       const result = await response.json();
       if (!response.ok) throw new Error(result.message);
 
-      return { success: true, config: { ...config, id: String(payload.registryId), createdAt: new Date().toISOString() } };
+      return { success: true, config: { ...config, id: String(result.registryId || config.id), createdAt: new Date().toISOString() } };
     } catch (error) {
       console.error('Save Config Failed:', error);
       return { success: false, config: config as SavedConfiguration };
@@ -153,7 +154,11 @@ export const apiService = {
 
   fetchTableMetadata: async (tableNames: string[]): Promise<Record<string, any>> => {
     try {
-      const response = await fetch(`${API_URL}/table-metadata?tables=${tableNames.join(',')}`);
+      const response = await fetch(`${API_URL}/fetch-metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tableNames })
+      });
       if (!response.ok) throw new Error('Failed to fetch table metadata');
       return await response.json();
     } catch (error) {
