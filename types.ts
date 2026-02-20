@@ -101,6 +101,7 @@ export interface SavedConfiguration {
   id: string;
   name: string;
   groupId: string;
+  sourceId?: string;
   // Record of Object ID to its specific mappings
   objectMappings: Record<string, FieldMapping[]>;
   createdAt: string;

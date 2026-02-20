@@ -9,33 +9,37 @@ interface DashboardProps {
   onSelectSchema: (schemaId: SchemaType) => void;
   onDelete: (e: React.MouseEvent, id: string) => void;
   onExport: (e: React.MouseEvent, config: SavedConfiguration) => void;
-  onNavigateToCustom: () => void;
   onCreateNew: (group: DataGroup) => void;
+  onBack?: () => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadConfig, onSelectSchema, onDelete, onExport, onNavigateToCustom, onCreateNew }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadConfig, onSelectSchema, onDelete, onExport, onCreateNew, onBack }) => {
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase mb-2">Integration Dashboard</h1>
-          <p className="text-slate-400 text-sm font-medium">Manage and review cross-domain relational mappings.</p>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-6">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="p-4 bg-slate-50 text-slate-400 hover:text-slate-900 rounded-2xl border border-slate-100 transition-colors"
+              title="Return to Source List"
+            >
+              ←
+            </button>
+          )}
+          <div>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase mb-1 flex items-center gap-3">
+              Source Dashboard
+              <span className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full border border-blue-100 tracking-widest">Active</span>
+            </h1>
+            <p className="text-slate-400 text-sm font-medium">Manage and review cross-domain relational mappings.</p>
+          </div>
         </div>
         <div className="flex gap-4 items-center">
-          <button
-            onClick={onNavigateToCustom}
-            className="h-[74px] px-8 bg-slate-900 text-white rounded-3xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex items-center gap-3"
-          >
-            <span>🏗️</span> Custom Architect
-          </button>
           <div className="h-10 w-px bg-slate-200 mx-2 hidden md:block"></div>
-          <div className="bg-white px-6 py-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center min-w-[120px]">
+          <div className="bg-slate-50 px-6 py-4 rounded-3xl border border-slate-200 flex flex-col items-center min-w-[100px]">
             <span className="text-2xl font-black text-blue-600">{configs.length}</span>
-            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Registries</span>
-          </div>
-          <div className="bg-white px-6 py-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center min-w-[120px]">
-            <span className="text-2xl font-black text-slate-900">{groups.length}</span>
-            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Domains</span>
+            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Saved</span>
           </div>
         </div>
       </div>

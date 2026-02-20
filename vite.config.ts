@@ -8,6 +8,9 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3003,
       host: '0.0.0.0',
+      hmr: {
+        clientPort: 3003
+      }
     },
     plugins: [react()],
     define: {

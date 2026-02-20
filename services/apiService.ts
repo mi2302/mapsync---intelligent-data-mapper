@@ -68,7 +68,8 @@ export const apiService = {
         registryId: config.id, // Let backend generate if null
         registryName: config.name,
         moduleName: groupName,
-        objectMappings: config.objectMappings
+        objectMappings: config.objectMappings,
+        sourceId: config.sourceId
       };
 
       const response = await fetch(`${API_URL}/registry`, {
@@ -96,6 +97,7 @@ export const apiService = {
         id: c.id,
         name: c.name,
         groupId: c.groupId,
+        sourceId: c.sourceId ? String(c.sourceId) : undefined,
         objectMappings: c.objectMappings || {},
         createdAt: c.createdAt || new Date().toISOString()
       }));
@@ -114,6 +116,7 @@ export const apiService = {
         id: c.id,
         name: c.name,
         groupId: c.groupId,
+        sourceId: c.sourceId ? String(c.sourceId) : undefined,
         objectMappings: c.objectMappings || {},
         createdAt: c.createdAt || new Date().toISOString()
       }));
@@ -200,6 +203,105 @@ export const apiService = {
     } catch (error) {
       console.error('Fetch Relationships Failed:', error);
       return [];
+    }
+  },
+
+  // --- PROJECT API ---
+  fetchProjects: async (): Promise<any[]> => {
+    try {
+      const response = await fetch(`${API_URL}/projects`);
+      if (!response.ok) return [];
+      return await response.json();
+    } catch (error) {
+      console.error('Fetch Projects Failed:', error);
+      return [];
+    }
+  },
+
+  createProject: async (name: string, description: string, moduleIds?: number[]): Promise<{ success: boolean; projectId?: number; error?: string }> => {
+    try {
+      const response = await fetch(`${API_URL}/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, description, moduleIds })
+      });
+      return await response.json();
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  fetchProjectDetails: async (id: string): Promise<{ project: any; modules: DataGroup[] } | null> => {
+    try {
+      const response = await fetch(`${API_URL}/projects/${id}`);
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (error) {
+      console.error('Fetch Project Details Failed:', error);
+      return null;
+    }
+  },
+
+  updateProjectModules: async (projectId: string, moduleIds: number[]): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_URL}/projects/${projectId}/modules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleIds })
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Update Project Modules Failed:', error);
+      return false;
+    }
+  },
+
+  fetchProjectSources: async (projectId: string): Promise<any[]> => {
+    try {
+      const response = await fetch(`${API_URL}/projects/${projectId}/sources`);
+      if (!response.ok) return [];
+      return await response.json();
+    } catch (error) {
+      console.error('Fetch Project Sources Failed:', error);
+      return [];
+    }
+  },
+
+  createProjectSource: async (projectId: string, name: string, description: string, moduleIds?: number[]): Promise<{ success: boolean; sourceId?: number; registryId?: number; error?: string }> => {
+    try {
+      const response = await fetch(`${API_URL}/projects/${projectId}/sources`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, description, moduleIds })
+      });
+      return await response.json();
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  fetchSourceModules: async (sourceId: string): Promise<{ projectId: string; selectedModuleIds: number[] } | null> => {
+    try {
+      const response = await fetch(`${API_URL}/sources/${sourceId}/modules`);
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (error) {
+      console.error('Fetch Source Modules Failed:', error);
+      return null;
+    }
+  },
+
+  updateSourceModules: async (sourceId: string, moduleIds: number[]): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_URL}/sources/${sourceId}/modules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleIds })
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Update Source Modules Failed:', error);
+      return false;
     }
   }
 };

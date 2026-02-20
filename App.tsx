@@ -14,6 +14,8 @@ import { parseFile } from './utils/fileParser';
 import { intelligentAutoMap } from './utils/intelligentMapping';
 import { CustomModuleCreation } from './components/CustomModuleCreation';
 import { mergeRows } from './utils/dataMerger';
+import { ProjectList } from './components/ProjectList';
+import { ProjectDetail } from './components/ProjectDetail';
 
 const inferType = (values: any[]): DataType => {
   const cleanValues = values.filter(v => v !== undefined && v !== null && v !== '');
@@ -27,8 +29,15 @@ const inferType = (values: any[]): DataType => {
   return 'VARCHAR';
 };
 
+// Navigation State
 const App: React.FC = () => {
-  const [view, setView] = useState<'dashboard' | 'workspace' | 'custom_module'>('dashboard');
+  // Navigation State
+  const [view, setView] = useState<'projects' | 'project_detail' | 'mapping' | 'custom_module' | 'source_dashboard'>('projects');
+
+  // Context State
+  const [currentProject, setCurrentProject] = useState<any>(null);
+  const [currentSource, setCurrentSource] = useState<any>(null);
+
   const [dataGroups, setDataGroups] = useState<DataGroup[]>([]);
   const [selectedSchema, setSelectedSchema] = useState<SchemaDefinition | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -92,9 +101,13 @@ const App: React.FC = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [previewLogs, setPreviewLogs] = useState<any[]>([]);
 
+  // Navigation & View State
+  const [projectActiveTab, setProjectActiveTab] = useState<'modules' | 'sources'>('modules');
+  const [sourceToEditInProject, setSourceToEditInProject] = useState<any>(null);
+
   const [isAutoMapping, setIsAutoMapping] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [loadingConfig, setLoadingConfig] = useState(true);
+  const [loadingConfig, setLoadingConfig] = useState(false);
 
   const [dynamicSchemas, setDynamicSchemas] = useState<Record<string, SchemaDefinition>>(SCHEMAS);
   const [configName, setConfigName] = useState('');
@@ -200,116 +213,123 @@ const App: React.FC = () => {
     showToast(`Removed source file: ${fileName}`, "success");
   };
 
-  const refreshAllConfigs = async () => {
+  const refreshAllConfigs = async (groupsToUse?: DataGroup[]) => {
+    const groups = groupsToUse || dataGroups;
+    console.log('Refreshing configs for groups:', groups.map(g => g.id));
     const all: SavedConfiguration[] = [];
-    for (const group of dataGroups) {
-      const configs = await apiService.fetchConfigsByGroup(group.id);
-      all.push(...configs);
+    for (const group of groups) {
+      try {
+        const configs = await apiService.fetchConfigsByGroup(group.id);
+        console.log(`Configs for ${group.id}:`, configs.length);
+        all.push(...configs);
+      } catch (err) {
+        console.error(`Failed to fetch configs for group ${group.id}:`, err);
+      }
     }
+    console.log('Total Saved Configs:', all.length);
     setAllSavedConfigs(all);
   };
 
-  useEffect(() => {
-    const init = async () => {
-      setLoadingConfig(true);
-      const groups = await apiService.fetchDataGroups();
-      console.log('DEBUG: Fetched Groups:', groups);
-      setDataGroups(groups);
+  // Helper: Load Project Context
+  const enterProject = async (project: any) => {
+    setCurrentProject(project);
+    setView('project_detail');
+  };
 
-      // Build schema definitions for custom modules
-      const customSchemas: Record<string, SchemaDefinition> = {};
-      const customTableNames: string[] = [];
+  const enterSourceMapping = async (source: any, preloadedModules?: DataGroup[]) => {
+    setLoadingConfig(true);
+    setCurrentSource(source);
 
-      for (const group of groups) {
-        // Check if this is a custom module (not in SCHEMAS)
-        const isCustom = group.objects.some(obj => !SCHEMAS[obj.id]);
+    try {
+      let modules: DataGroup[] | undefined = undefined;
 
-        if (isCustom) {
-          for (const obj of group.objects) {
-            if (!SCHEMAS[obj.id]) {
-              // This is a custom object, we need to create its schema
-              // CRITICAL FIX: Use the explicit table name from server if available
-              const rawTableName = obj.table || obj.id || '';
-              const tableName = rawTableName.toLowerCase();
-              customTableNames.push(tableName);
+      // 1. Try fetching Source-Specific module selections
+      console.log('Fetching source-specific modules for:', source.SOURCE_ID);
+      const sourceModuleData = await apiService.fetchSourceModules(source.SOURCE_ID);
 
-              customSchemas[obj.id] = {
-                id: obj.id as SchemaType,
-                name: obj.name || (obj.id ? obj.id.replace(/_/g, ' ') : 'Unknown Module'),
-                icon: '⚡',
-                table_name: tableName,
-                fields: [] // Will be populated below
-              };
-            }
-          }
+      if (sourceModuleData && sourceModuleData.selectedModuleIds.length > 0) {
+        // We have source-specific selections. We need to filter the project modules.
+        const projDetails = await apiService.fetchProjectDetails(currentProject.PROJECT_ID);
+        if (projDetails && projDetails.modules) {
+          const selectedIds = new Set(sourceModuleData.selectedModuleIds);
+          // Filter modules: keep a group if ANY of its objects are in the selectedIds
+          modules = projDetails.modules.map((group: any) => ({
+            ...group,
+            objects: group.objects.filter((obj: any) => obj.moduleId && selectedIds.has(obj.moduleId))
+          })).filter((group: any) => group.objects.length > 0);
+          console.log(`Loaded ${modules.length} source-specific modules.`);
         }
       }
 
-      console.log('DEBUG: Built customSchemas keys:', Object.keys(customSchemas));
+      // 2. Fallback: If no modules were found for the source, initialize with an empty array
+      // instead of project modules, to respect the "remove project modules" request.
+      if (!modules) {
+        modules = [];
+        console.log('No source-specific modules found. Sidebar will be empty.');
+      }
 
-      // Fetch metadata for all custom tables at once
-      if (customTableNames.length > 0) {
-        try {
+      if (modules) {
+        setDataGroups(modules);
+
+        // Also need to register their schemas dynamically if custom
+        // Reuse existing logic from original init...
+        const customSchemas: Record<string, SchemaDefinition> = {};
+        const customTableNames: string[] = [];
+
+        for (const group of modules) {
+          const isCustom = group.objects.some(obj => !SCHEMAS[obj.id]);
+          if (isCustom) {
+            for (const obj of group.objects) {
+              if (!SCHEMAS[obj.id]) {
+                const rawTableName = obj.table || obj.id || '';
+                const tableName = rawTableName.toLowerCase();
+                customTableNames.push(tableName);
+                customSchemas[obj.id] = {
+                  id: obj.id as SchemaType,
+                  name: obj.name || 'Unknown',
+                  icon: '⚡',
+                  table_name: tableName,
+                  fields: []
+                };
+              }
+            }
+          }
+        }
+
+        if (customTableNames.length > 0) {
           const metadata = await apiService.fetchTableMetadata(customTableNames);
-
-          // Populate fields for each custom schema
           Object.keys(customSchemas).forEach(objId => {
             const tableName = customSchemas[objId].table_name.toUpperCase();
             if (metadata[tableName]) {
               customSchemas[objId].fields = metadata[tableName];
             }
           });
-        } catch (err) {
-          console.error('Failed to fetch custom module metadata:', err);
         }
-      }
-
-      // Fetch dynamic integrity rules from DB
-      try {
-        const integrityRules = await apiService.getRelationships();
-
-
-
-        // Apply rules to merged object (covering both built-in and custom)
-        const merged: Record<string, SchemaDefinition> = { ...SCHEMAS, ...customSchemas };
-        console.log('DEBUG: Final Merged Keys:', Object.keys(merged));
-
-        integrityRules.forEach((rule: any) => {
-          const sid = rule.sourceSchemaId;
-          if (merged[sid]) {
-            const deps = merged[sid].dependencies || [];
-            // Avoid duplicates if defined in constants AND db
-            const isDup = deps.some(d => d.targetSchemaId === rule.targetSchemaId && d.sourceFieldId === rule.sourceFieldId);
-            if (!isDup) {
-              merged[sid] = {
-                ...merged[sid],
-                dependencies: [...deps, {
-                  targetSchemaId: rule.targetSchemaId,
-                  sourceFieldId: rule.sourceFieldId,
-                  targetFieldId: rule.targetFieldId,
-                  type: rule.type
-                }]
-              };
-            }
-          }
-        });
-
-        setDynamicSchemas(merged);
-
-      } catch (e) {
-        console.error("Failed to load integrity rules", e);
         setDynamicSchemas({ ...SCHEMAS, ...customSchemas });
       }
 
-      // Optimize: Fetch all configs in parallel
-      const configPromises = groups.map(group => apiService.fetchConfigsByGroup(group.id));
-      const results = await Promise.all(configPromises);
-      const all = results.flat();
-      setAllSavedConfigs(all);
+      // Fetch ALL configs so we can filter for this source in the dashboard
+      await refreshAllConfigs(modules);
 
-      setLoadingConfig(false);
-    };
-    init();
+    } catch (e) {
+      console.error('Failed to load project modules', e);
+      showToast('Error loading project modules', 'error');
+    }
+
+    // New Config Context:
+    setConfigName(''); // Bind name
+    setActiveConfigId(null); // Reset ID
+
+    // IMPORTANT: We need to know the 'Source ID' when saving.
+    // We'll attach it to the save payload.
+    // Go to Dashboard first
+    setView('source_dashboard');
+    setLoadingConfig(false);
+  };
+
+  useEffect(() => {
+    // Initial load - Maybe just integrity rules or nothing?
+    // We defer loading groups until project selection.
   }, []);
 
   // Fetch Live Metadata ONLY for the selected object
@@ -399,7 +419,7 @@ const App: React.FC = () => {
       ...prev,
       [schemaId]: newMappings
     }));
-    setView('workspace');
+    setView('mapping');
   };
 
   const handleNewRegistry = async () => {
@@ -444,6 +464,7 @@ const App: React.FC = () => {
       const result = await apiService.saveMappingConfiguration({
         id: activeConfigId || undefined,
         groupName: currentGroup.name,
+        sourceId: currentSource?.SOURCE_ID ? String(currentSource.SOURCE_ID) : undefined,
         ...configToSave
       });
 
@@ -471,7 +492,7 @@ const App: React.FC = () => {
     if (firstSchemaId) {
       const schema = dynamicSchemas[firstSchemaId];
       setSelectedSchema(schema);
-      setView('workspace');
+      setView('mapping');
       if (!expandedGroups.includes(config.groupId)) setExpandedGroups(prev => [...prev, config.groupId]);
     }
   };
@@ -665,7 +686,7 @@ const App: React.FC = () => {
     if (!expandedGroups.includes(group.id)) {
       setExpandedGroups(prev => [...prev, group.id]);
     }
-    setView('workspace');
+    setView('mapping');
   };
 
   const handlePreview = async () => {
@@ -831,7 +852,7 @@ const App: React.FC = () => {
 
   if (loadingConfig) {
     return (
-      <Layout onGoHome={() => setView('dashboard')}>
+      <Layout onGoHome={() => setView('projects')}>
         <div className="h-[60vh] flex flex-col items-center justify-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent shadow-xl"></div>
           <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] animate-pulse">Initializing Data Warehouse...</p>
@@ -840,24 +861,61 @@ const App: React.FC = () => {
     );
   }
 
-  return (
-    <Layout onGoHome={() => setView('dashboard')}>
-      {toast && <Toast message={toast.message} type={toast.type} />}
+  if (view === 'projects') {
+    return (
+      <Layout onGoHome={() => setView('projects')}>
+        {toast && <Toast message={toast.message} type={toast.type} />}
+        <ProjectList
+          onSelectProject={enterProject}
+          onNavigateToArchitect={() => setView('custom_module')}
+        />
+      </Layout>
+    );
+  }
 
-      {view === 'dashboard' ? (
+  if (view === 'project_detail' && currentProject) {
+    return (
+      <Layout onGoHome={() => setView('projects')}>
+        {toast && <Toast message={toast.message} type={toast.type} />}
+        <ProjectDetail
+          project={currentProject}
+          onBack={() => { setProjectActiveTab('modules'); setView('projects'); }}
+          onSelectSource={(source) => enterSourceMapping(source)}
+          initialTab={projectActiveTab}
+          initialEditingSource={sourceToEditInProject}
+        />
+      </Layout>
+    );
+  }
+
+  if (view === 'source_dashboard' && currentSource) {
+    return (
+      <Layout onGoHome={() => setView('projects')}>
+        {toast && <Toast message={toast.message} type={toast.type} />}
         <Dashboard
           groups={dataGroups}
-          configs={allSavedConfigs}
+          configs={allSavedConfigs.filter(c => !c.sourceId || String(c.sourceId) === String(currentSource.SOURCE_ID))}
           onLoadConfig={loadSavedConfig}
           onSelectSchema={handleSchemaChange}
           onDelete={handleDeleteConfig}
           onExport={handleExport}
-          onNavigateToCustom={() => setView('custom_module')}
           onCreateNew={handleCreateNewForGroup}
+          onBack={() => { setProjectActiveTab('sources'); setSourceToEditInProject(null); setView('project_detail'); }}
         />
-      ) : view === 'custom_module' ? (
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout onGoHome={() => setView('projects')}>
+      {toast && <Toast message={toast.message} type={toast.type} />}
+
+      {view === 'custom_module' ? (
         <CustomModuleCreation
-          onBack={() => setView('dashboard')}
+          onBack={() => {
+            if (currentProject) setView('project_detail');
+            else setView('projects');
+          }}
           onCreate={handleCreateModule}
           allSchemas={dynamicSchemas}
         />
@@ -1402,7 +1460,7 @@ const App: React.FC = () => {
                         setConfigName(e.target.value);
                         setIsModified(true);
                       }}
-                      className="w-full bg-slate-50 border border-slate-100 px-5 py-3 rounded-2xl text-[10px] font-black uppercase outline-none focus:border-blue-400 transition-all shadow-inner"
+                      className="w-full bg-slate-50 border border-slate-100 px-5 py-3 rounded-2xl text-xs font-bold outline-none focus:border-blue-400 transition-all shadow-inner placeholder:text-slate-400 text-slate-700"
                     />
                   </div>
                   <div className="flex items-center gap-3 w-full md:w-auto">
@@ -1422,6 +1480,7 @@ const App: React.FC = () => {
                       schema={selectedSchema}
                       source={sourceData}
                       mappings={allMappings[selectedSchema.id] || []}
+                      onBack={() => setView('source_dashboard')}
                       onUpdateMapping={(newMapping) => {
                         // SAVE TO MEMORY if explicit mapping
                         if (newMapping.sourceHeader) {
@@ -1538,7 +1597,24 @@ const App: React.FC = () => {
                   )}
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center p-20 bg-white/50 border border-slate-100 rounded-[3rem] animate-in fade-in zoom-in duration-500">
+                <div className="text-center space-y-4 max-w-md">
+                  <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-3xl mx-auto flex items-center justify-center text-3xl shadow-lg shadow-blue-500/10 mb-6">
+                    ⚡
+                  </div>
+                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Select a Module</h3>
+                  <p className="text-sm text-slate-400 font-medium leading-relaxed">
+                    Choose a target entity from the <span className="font-bold text-slate-600">System Catalog</span> on the left to begin mapping your data.
+                  </p>
+                  <div className="pt-8 flex flex-wrap gap-2 justify-center opacity-40">
+                    <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                    <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                    <span className="w-2 h-2 rounded-full bg-slate-300 animate-pulse"></span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )

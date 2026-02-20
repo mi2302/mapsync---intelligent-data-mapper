@@ -304,7 +304,7 @@ function nameToId(name) {
     // Mapping legacy IDs to new standardized ones
     if (gid === 'workforce' || gid === 'workforce_management') return 'workforce_management';
     if (gid === 'payables' || gid === 'accounts_payable') return 'accounts_payable';
-    // if (gid === 'suppliers' || gid === 'vendor_relations') return 'vendor_relations'; // Identifying them separately now
+    // Reverted the merging of suppliers and vendor_relations
     return gid;
 }
 
@@ -315,7 +315,7 @@ app.get('/api/modules', async (req, res) => {
         connection = await pool.getConnection();
 
         const result = await connection.execute(
-            `SELECT MODULE_NAME, OBJECT_NAME, TARGET_TABLE_NAME, 
+            `SELECT MODULE_ID, MODULE_NAME, OBJECT_NAME, TARGET_TABLE_NAME, 
                     (SELECT ICON FROM (SELECT ICON, MODULE_NAME as mname FROM MSAI_MODULES) WHERE mname = row_alias.MODULE_NAME AND ROWNUM = 1) as ICON_VAL
              FROM MSAI_MODULES row_alias`,
             [],
@@ -338,7 +338,8 @@ app.get('/api/modules', async (req, res) => {
             groups[gid].objects.push({
                 id: row.OBJECT_NAME,
                 name: row.OBJECT_NAME.replace(/_/g, ' '), // Friendly name
-                table: row.TARGET_TABLE_NAME
+                table: row.TARGET_TABLE_NAME,
+                moduleId: row.MODULE_ID // Added for linking
             });
         });
 
@@ -399,7 +400,7 @@ app.post('/api/modules', async (req, res) => {
 
 // Save Registry Configuration (Full Hierarchy)
 app.post('/api/registry', async (req, res) => {
-    let { registryId, registryName, moduleName, objectMappings } = req.body;
+    let { registryId, registryName, moduleName, objectMappings, sourceId } = req.body;
 
     let connection;
     try {
@@ -426,16 +427,16 @@ app.post('/api/registry', async (req, res) => {
             if (!finalRegistryId) throw new Error('Failed to generate Registry ID from Sequence');
 
             await connection.execute(
-                `INSERT INTO MSAI_REGISTRY (REGISTRY_ID, REGISTRY_NAME, MODULE_NAME)
-                 VALUES (:id, :name, :mod)`,
-                { id: finalRegistryId, name: registryName, mod: moduleName },
+                `INSERT INTO MSAI_REGISTRY (REGISTRY_ID, REGISTRY_NAME, MODULE_NAME, SOURCE_ID)
+                 VALUES (:id, :name, :mod, :sid)`,
+                { id: finalRegistryId, name: registryName, mod: moduleName, sid: sourceId || null },
                 { autoCommit: false }
             );
         } else {
             // Existing - Update
             await connection.execute(
-                `UPDATE MSAI_REGISTRY SET REGISTRY_NAME = :name, MODULE_NAME = :mod WHERE REGISTRY_ID = :id`,
-                { name: registryName, mod: moduleName, id: registryId },
+                `UPDATE MSAI_REGISTRY SET REGISTRY_NAME = :name, MODULE_NAME = :mod, SOURCE_ID = :sid WHERE REGISTRY_ID = :id`,
+                { name: registryName, mod: moduleName, sid: sourceId || null, id: registryId },
                 { autoCommit: false }
             );
         }
@@ -571,7 +572,8 @@ async function buildRegistryConfigs(connection, regRows) {
             id: String(row.REGISTRY_ID),
             name: row.REGISTRY_NAME,
             groupId: groupId,
-            objectMappings: objectMappings
+            objectMappings: objectMappings,
+            sourceId: row.SOURCE_ID ? String(row.SOURCE_ID) : undefined
         });
     }
     return configs;
@@ -585,7 +587,7 @@ app.get('/api/registry', async (req, res) => {
         connection = await pool.getConnection();
 
         const regResult = await connection.execute(
-            `SELECT REGISTRY_ID, REGISTRY_NAME, MODULE_NAME FROM MSAI_REGISTRY`,
+            `SELECT REGISTRY_ID, REGISTRY_NAME, MODULE_NAME, SOURCE_ID FROM MSAI_REGISTRY`,
             [],
             { outFormat: oracledb.OUT_FORMAT_OBJECT }
         );
@@ -623,7 +625,7 @@ app.get('/api/modules/:moduleName/registries', async (req, res) => {
         });
 
         const regResult = await connection.execute(
-            `SELECT REGISTRY_ID, REGISTRY_NAME, MODULE_NAME 
+            `SELECT REGISTRY_ID, REGISTRY_NAME, MODULE_NAME, SOURCE_ID 
              FROM MSAI_REGISTRY 
              WHERE UPPER(MODULE_NAME) IN (${searchNames.map((_, i) => `:mod${i}`).join(',')})`,
             searchNames.reduce((acc, name, i) => ({ ...acc, [`mod${i}`]: name.toUpperCase() }), {}),
@@ -639,6 +641,302 @@ app.get('/api/modules/:moduleName/registries', async (req, res) => {
         if (connection) {
             try { await connection.close(); } catch (err) { console.error(err); }
         }
+    }
+});
+
+// --- PROJECT MANAGEMENT APIs ---
+
+// 1. Get All Projects
+app.get('/api/projects', async (req, res) => {
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
+        const result = await connection.execute(
+            `SELECT p.*,
+                    (SELECT COUNT(*) FROM MSAI_PROJECT_MODULES pm WHERE pm.PROJECT_ID = p.PROJECT_ID) as MODULE_COUNT
+             FROM MSAI_PROJECTS p 
+             ORDER BY p.CREATED_AT DESC`,
+            [],
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
+
+// 2. Create Project
+app.post('/api/projects', async (req, res) => {
+    const { name, description, moduleIds } = req.body;
+    console.log('[DEBUG] Create Project Request:', { name, description, moduleIds });
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
+
+        const result = await connection.execute(
+            `INSERT INTO MSAI_PROJECTS (PROJECT_ID, PROJECT_NAME, DESCRIPTION) 
+             VALUES (MSAI_PROJECT_SEQ.NEXTVAL, :p_name, :p_desc) RETURNING PROJECT_ID INTO :p_id`,
+            {
+                p_name: name,
+                p_desc: description,
+                p_id: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT }
+            },
+            { autoCommit: false }
+        );
+
+        const projectId = result.outBinds.p_id[0];
+        console.log('[DEBUG] Project Created with ID:', projectId);
+
+        // Insert modules if provided
+        if (moduleIds && moduleIds.length > 0) {
+            console.log('[DEBUG] Inserting modules for project:', moduleIds);
+            for (const mid of moduleIds) {
+                await connection.execute(
+                    `INSERT INTO MSAI_PROJECT_MODULES (PROJECT_ID, MODULE_ID) VALUES (:pid, :mid)`,
+                    { pid: projectId, mid: mid },
+                    { autoCommit: false }
+                );
+            }
+        } else {
+            console.log('[DEBUG] No moduleIds provided in request body');
+        }
+
+        await connection.commit();
+        res.json({ success: true, projectId: projectId });
+    } catch (err) {
+        console.error('[ERROR] Project Creation Failed:', err);
+        if (connection) await connection.rollback();
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
+
+// 3. Get Project Details (with Modules)
+app.get('/api/projects/:id', async (req, res) => {
+    const { id } = req.params;
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
+
+        const projResult = await connection.execute(
+            `SELECT * FROM MSAI_PROJECTS WHERE PROJECT_ID = :id`,
+            [id],
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        if (projResult.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
+
+        const modsResult = await connection.execute(
+            `SELECT m.* 
+             FROM MSAI_MODULES m
+             JOIN MSAI_PROJECT_MODULES pm ON m.MODULE_ID = pm.MODULE_ID
+             WHERE pm.PROJECT_ID = :id`,
+            [id],
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        // Group modules for cleaner frontend consumption (similar to /api/modules)
+        const groups = {};
+        modsResult.rows.forEach(row => {
+            const gid = nameToId(row.MODULE_NAME);
+            if (!groups[gid]) {
+                groups[gid] = {
+                    id: gid,
+                    name: row.MODULE_NAME,
+                    icon: row.ICON || '\u{1F4E6}',
+                    objects: []
+                };
+            }
+            groups[gid].objects.push({
+                id: row.OBJECT_NAME,
+                name: row.OBJECT_NAME.replace(/_/g, ' '),
+                table: row.TARGET_TABLE_NAME,
+                moduleId: row.MODULE_ID // Important for linking
+            });
+        });
+
+        res.json({
+            project: projResult.rows[0],
+            modules: Object.values(groups)
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
+
+// 4. Add Modules to Project
+app.post('/api/projects/:id/modules', async (req, res) => {
+    const { id } = req.params;
+    const { moduleIds } = req.body; // Array of MODULE_ID
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
+
+        // Clear existing (optional, or merge) - let's merge or precise set
+        // User asked "select modules... to work on". Simple approach: Delete all for project and re-insert.
+        await connection.execute(`DELETE FROM MSAI_PROJECT_MODULES WHERE PROJECT_ID = :id`, [id], { autoCommit: false });
+
+        if (moduleIds && moduleIds.length > 0) {
+            for (const mid of moduleIds) {
+                await connection.execute(
+                    `INSERT INTO MSAI_PROJECT_MODULES (PROJECT_ID, MODULE_ID) VALUES (:pid, :mid)`,
+                    { pid: id, mid: mid },
+                    { autoCommit: false }
+                );
+            }
+        }
+        await connection.commit();
+        res.json({ success: true });
+    } catch (err) {
+        if (connection) await connection.rollback();
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
+
+// 5. Get Sources in Project
+app.get('/api/projects/:id/sources', async (req, res) => {
+    const { id } = req.params;
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
+
+        const result = await connection.execute(
+            `SELECT s.*, 
+                    (SELECT COUNT(*) FROM MSAI_SOURCE_MODULES sm WHERE sm.SOURCE_ID = s.SOURCE_ID) as MODULE_COUNT
+             FROM MSAI_SOURCES s 
+             WHERE s.PROJECT_ID = :id 
+             ORDER BY s.CREATED_AT DESC`,
+            [id],
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
+
+// 6. Create Source in Project
+app.post('/api/projects/:id/sources', async (req, res) => {
+    const { id } = req.params;
+    const { name, description, moduleIds } = req.body;
+    console.log('[DEBUG] Create Source Request for Project:', id, { name, description, moduleIds });
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
+
+        // Create Source
+        const result = await connection.execute(
+            `INSERT INTO MSAI_SOURCES (SOURCE_ID, SOURCE_NAME, PROJECT_ID, DESCRIPTION) 
+             VALUES (MSAI_SOURCE_SEQ.NEXTVAL, :p_name, :p_pid, :p_desc) RETURNING SOURCE_ID INTO :p_sid`,
+            {
+                p_name: name,
+                p_pid: id,
+                p_desc: description,
+                p_sid: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT }
+            },
+            { autoCommit: false }
+        );
+
+        const sourceId = result.outBinds.p_sid[0];
+        console.log('[DEBUG] Source Created with ID:', sourceId);
+
+        // Insert modules if provided
+        if (moduleIds && moduleIds.length > 0) {
+            console.log('[DEBUG] Inserting modules for source:', moduleIds);
+            for (const mid of moduleIds) {
+                await connection.execute(
+                    `INSERT INTO MSAI_SOURCE_MODULES (SOURCE_ID, MODULE_ID) VALUES (:sid, :mid)`,
+                    { sid: sourceId, mid: mid },
+                    { autoCommit: false }
+                );
+            }
+        } else {
+            console.log('[DEBUG] No moduleIds provided for source');
+        }
+
+        await connection.commit();
+        res.json({ success: true, sourceId: sourceId });
+    } catch (err) {
+        console.error('[ERROR] Source Creation Failed:', err);
+        if (connection) await connection.rollback();
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
+
+// 7. Get Selected Modules for Source
+app.get('/api/sources/:id/modules', async (req, res) => {
+    const { id } = req.params;
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
+
+        // Get modules assigned to this specific source
+        const result = await connection.execute(
+            `SELECT MODULE_ID FROM MSAI_SOURCE_MODULES WHERE SOURCE_ID = :id`,
+            [id]
+        );
+
+        res.json({
+            sourceId: id,
+            selectedModuleIds: result.rows.map(r => r[0])
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
+
+// 8. Update Selected Modules for Source
+app.post('/api/sources/:id/modules', async (req, res) => {
+    const { id } = req.params;
+    const { moduleIds } = req.body; // Array of IDs
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
+
+        // Remove old selections for this source
+        await connection.execute(
+            `DELETE FROM MSAI_SOURCE_MODULES WHERE SOURCE_ID = :id`,
+            [id],
+            { autoCommit: false }
+        );
+
+        // Insert new selections
+        for (const mid of moduleIds) {
+            await connection.execute(
+                `INSERT INTO MSAI_SOURCE_MODULES (SOURCE_ID, MODULE_ID) VALUES (:sid, :mid)`,
+                [id, mid],
+                { autoCommit: false }
+            );
+        }
+
+        await connection.commit();
+        res.json({ success: true });
+    } catch (err) {
+        if (connection) await connection.rollback();
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) await connection.close();
     }
 });
 

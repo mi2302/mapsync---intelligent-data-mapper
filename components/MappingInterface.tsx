@@ -12,6 +12,7 @@ interface MappingInterfaceProps {
   isAutoMapping: boolean;
   onRemoveFile?: (fileName: string) => void;
   onSync: () => Promise<void>;
+  onBack?: () => void;
 }
 
 const TRANSFORMATION_META: Record<TransformationType, { label: string; icon: string; color: string; bg: string; border: string }> = {
@@ -51,7 +52,8 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
   onAutoMap,
   isAutoMapping,
   onRemoveFile,
-  onSync
+  onSync,
+  onBack
 }) => {
   const [activeTab, setActiveTab] = useState<'mapping' | 'preview'>('mapping');
   const [draggedHeader, setDraggedHeader] = useState<string | null>(null);
@@ -196,8 +198,17 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-[2rem] shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-[850px]">
-      <div className="flex border-b border-slate-200 bg-slate-50 p-1.5 shrink-0">
+    <div className="bg-white rounded-[2rem] shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] min-h-[600px]">
+      <div className="flex items-center border-b border-slate-200 bg-slate-50 p-1.5 shrink-0">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="p-4 bg-white text-slate-400 hover:text-slate-900 rounded-2xl border border-slate-100 transition-colors mr-2 shadow-sm"
+            title="Return to Dashboard"
+          >
+            ←
+          </button>
+        )}
         <button
           onClick={() => setActiveTab('mapping')}
           className={`flex-1 px-8 py-4 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 ${activeTab === 'mapping' ? 'bg-white shadow-lg text-blue-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
@@ -313,7 +324,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                                   setDraggedHeader(header);
                                 }}
                                 onDragEnd={() => setDraggedHeader(null)}
-                                className={`flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-grab hover:border-blue-400 hover:shadow-lg transition-all active:cursor-grabbing ${draggedHeader === header ? 'opacity-30' : 'shadow-sm'}`}
+                                className={`flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-grab hover:border-blue-400 hover:shadow-md hover:bg-slate-50 transition-all active:cursor-grabbing ${draggedHeader === header ? 'opacity-40 border-dashed border-blue-400' : 'shadow-sm'}`}
                               >
                                 <span className="text-[9px] font-black text-slate-700 truncate uppercase max-w-[120px]">{header}</span>
                                 <span className={`text-[7px] font-black px-1.5 py-0.5 rounded border shrink-0 ${TYPE_COLORS[type]}`}>{TYPE_ICONS[type]}</span>
