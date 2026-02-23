@@ -4,10 +4,11 @@ import { apiService } from '../services/apiService';
 
 interface ProjectListProps {
     onSelectProject: (project: any) => void;
+    onManageModules: (project: any) => void;
     onNavigateToArchitect: () => void;
 }
 
-export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onNavigateToArchitect }) => {
+export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onManageModules, onNavigateToArchitect }) => {
     const [projects, setProjects] = useState<any[]>([]);
     const [allModules, setAllModules] = useState<any[]>([]);
     const [showCreate, setShowCreate] = useState(false);
@@ -15,6 +16,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onNav
     const [newProjectName, setNewProjectName] = useState('');
     const [newProjectDesc, setNewProjectDesc] = useState('');
     const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(new Set());
+
+    const [editingProjectModules, setEditingProjectModules] = useState<any | null>(null);
 
     useEffect(() => {
         loadProjects();
@@ -29,6 +32,32 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onNav
     const loadCatalog = async () => {
         const data = await apiService.fetchDataGroups();
         setAllModules(data);
+    };
+
+    const startEditProjectModules = async (project: any) => {
+        const details = await apiService.fetchProjectDetails(project.PROJECT_ID);
+        if (details) {
+            const ids = new Set<number>();
+            details.modules.forEach((group: any) => {
+                group.objects.forEach((obj: any) => {
+                    if (obj.moduleId) ids.add(Number(obj.moduleId));
+                });
+            });
+            setSelectedModuleIds(ids);
+            setEditingProjectModules(project);
+        }
+    };
+
+    const handleUpdateModules = async () => {
+        if (!editingProjectModules) return;
+        const moduleIds = Array.from(selectedModuleIds).map(id => Number(id));
+        const success = await apiService.updateProjectModules(editingProjectModules.PROJECT_ID, moduleIds);
+        if (success) {
+            setEditingProjectModules(null);
+            loadProjects();
+        } else {
+            alert(`Error updating project modules`);
+        }
     };
 
     const handleCreate = async () => {
@@ -82,7 +111,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onNav
                         <span>🏗️</span> Architect
                     </button>
                     <button
-                        onClick={() => { setShowCreate(true); setCreateStep(1); }}
+                        onClick={() => { setShowCreate(true); setCreateStep(1); setSelectedModuleIds(new Set()); }}
                         className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg"
                     >
                         + New Project
@@ -135,8 +164,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onNav
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2 scrollbar-hide">
                                 {allModules.map(group => {
                                     const validObjects = group.objects.filter((o: any) => o.moduleId);
-                                    const allSelected = validObjects.length > 0 && validObjects.every((o: any) => selectedModuleIds.has(o.moduleId));
-                                    const someSelected = validObjects.some((o: any) => selectedModuleIds.has(o.moduleId));
+                                    const allSelected = validObjects.length > 0 && validObjects.every((o: any) => selectedModuleIds.has(Number(o.moduleId)));
+                                    const someSelected = validObjects.some((o: any) => selectedModuleIds.has(Number(o.moduleId)));
 
                                     return (
                                         <div key={group.id} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 group/module hover:border-blue-200 transition-colors">
@@ -157,8 +186,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onNav
                                                     <label key={obj.id} className="flex items-center gap-3 p-2 hover:bg-white rounded-xl cursor-pointer select-none transition-colors border border-transparent hover:border-slate-100">
                                                         <input
                                                             type="checkbox"
-                                                            checked={selectedModuleIds.has(obj.moduleId)}
-                                                            onChange={() => toggleModule(obj.moduleId)}
+                                                            checked={selectedModuleIds.has(Number(obj.moduleId))}
+                                                            onChange={() => toggleModule(Number(obj.moduleId))}
                                                             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                                         />
                                                         <span className="text-xs font-bold text-slate-600">{obj.name}</span>
@@ -208,42 +237,124 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onNav
                 </div>
             )}
 
+            {/* Project Modules Edit Modal */}
+            {editingProjectModules && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-2xl animate-in zoom-in duration-300">
+                        <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-100">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Manage Project Modules</h2>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                    Define the architectural scope for <span className="text-blue-600">{editingProjectModules.PROJECT_NAME}</span>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setEditingProjectModules(null)}
+                                className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2 scrollbar-hide">
+                            {allModules.map(group => {
+                                const validObjects = group.objects.filter((o: any) => o.moduleId);
+                                const allSelected = validObjects.length > 0 && validObjects.every((o: any) => selectedModuleIds.has(Number(o.moduleId)));
+                                const someSelected = validObjects.some((o: any) => selectedModuleIds.has(Number(o.moduleId)));
+
+                                return (
+                                    <div key={group.id} className="bg-slate-50 p-5 rounded-3xl border border-slate-200">
+                                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200/50">
+                                            <h3 className="font-bold text-xs text-slate-400 uppercase flex items-center gap-2">
+                                                {group.icon || '📦'} {group.name}
+                                            </h3>
+                                            <input
+                                                type="checkbox"
+                                                checked={allSelected}
+                                                ref={el => el && (el.indeterminate = someSelected && !allSelected)}
+                                                onChange={() => toggleGroup(group)}
+                                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            {group.objects.map((obj: any) => (
+                                                <label key={obj.id} className="flex items-center gap-3 p-2 hover:bg-white rounded-xl cursor-pointer select-none transition-colors border border-transparent hover:border-slate-100">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedModuleIds.has(Number(obj.moduleId))}
+                                                        onChange={() => toggleModule(Number(obj.moduleId))}
+                                                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                    />
+                                                    <span className="text-xs font-bold text-slate-600">{obj.name}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="flex gap-4 mt-10 pt-6 border-t border-slate-100">
+                            <button
+                                onClick={() => setEditingProjectModules(null)}
+                                className="px-8 py-3 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200"
+                            >
+                                Cancel
+                            </button>
+                            <div className="flex-1"></div>
+                            <button
+                                onClick={handleUpdateModules}
+                                className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-200"
+                            >
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {projects.map(proj => (
                     <div
                         key={proj.PROJECT_ID}
-                        className="group bg-white border border-slate-200 rounded-3xl p-6 hover:shadow-xl hover:-translate-y-1 transition-all relative overflow-hidden flex flex-col justify-between min-h-[220px]"
+                        className="group bg-white border border-slate-200 rounded-[2.5rem] p-7 hover:border-blue-500 hover:shadow-[0_20px_50px_rgba(59,130,246,0.1)] transition-all relative overflow-hidden flex flex-col justify-between min-h-[260px] shadow-sm"
                     >
-                        <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-                            <span className="text-8xl">📂</span>
+                        {/* Top Accent */}
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <span className="text-9xl">📂</span>
                         </div>
 
                         <div>
-                            <div className="flex justify-between items-start mb-4">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
+                            <div className="flex justify-between items-start mb-6">
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-xl">
                                     Project
                                 </span>
-                                <span className="text-[10px] font-bold text-slate-400">
+                                <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
                                     {new Date(proj.CREATED_AT).toLocaleDateString()}
                                 </span>
                             </div>
 
-                            <h3 className="text-xl font-black text-slate-900 mb-2 line-clamp-2">{proj.PROJECT_NAME}</h3>
-                            <p className="text-slate-500 text-sm line-clamp-3 mb-4">{proj.DESCRIPTION || 'No description provided.'}</p>
-
-                            <div className="flex items-center gap-2 mb-6">
-                                <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-1 rounded-md border border-blue-100">
-                                    {proj.MODULE_COUNT || 0} Modules
-                                </span>
-                            </div>
+                            <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-600 transition-colors mb-2 leading-tight uppercase tracking-tight">{proj.PROJECT_NAME}</h3>
+                            <p className="text-slate-400 text-xs font-bold line-clamp-3 mb-6 uppercase tracking-tight leading-relaxed">{proj.DESCRIPTION || 'Enterprise data mapping initiative'}</p>
                         </div>
 
-                        <button
-                            onClick={() => onSelectProject(proj)}
-                            className="w-full py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                        >
-                            Open Project <span>→</span>
-                        </button>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => startEditProjectModules(proj)}
+                                className="flex-1 py-3.5 bg-slate-50 text-slate-500 border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all flex items-center justify-center gap-2 shadow-sm"
+                                title="Manage Project Scope"
+                            >
+                                <span>🧩</span> Modules
+                            </button>
+                            <button
+                                onClick={() => onSelectProject(proj)}
+                                className="flex-[1.5] py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:shadow-xl hover:shadow-blue-200 transition-all flex items-center justify-center gap-2 group/btn"
+                            >
+                                Open Workspace <span className="transform group-hover/btn:translate-x-1 transition-transform">→</span>
+                            </button>
+                        </div>
                     </div>
                 ))}
 

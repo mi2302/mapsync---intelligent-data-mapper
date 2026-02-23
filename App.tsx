@@ -16,6 +16,7 @@ import { CustomModuleCreation } from './components/CustomModuleCreation';
 import { mergeRows } from './utils/dataMerger';
 import { ProjectList } from './components/ProjectList';
 import { ProjectDetail } from './components/ProjectDetail';
+import ChatBot from './components/ChatBot';
 
 const inferType = (values: any[]): DataType => {
   const cleanValues = values.filter(v => v !== undefined && v !== null && v !== '');
@@ -113,6 +114,10 @@ const App: React.FC = () => {
   const [configName, setConfigName] = useState('');
   const [allSavedConfigs, setAllSavedConfigs] = useState<SavedConfiguration[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Refresh relay for assistant actions
+  const [refreshKey, setRefreshKey] = useState(0);
+  const handleAssistantRefresh = () => setRefreshKey(prev => prev + 1);
 
   const getGroupIdForSchema = (schemaId: SchemaType) => {
     return dataGroups.find(g => g.objects.some(o => o.id === schemaId))?.id || null;
@@ -213,13 +218,14 @@ const App: React.FC = () => {
     showToast(`Removed source file: ${fileName}`, "success");
   };
 
-  const refreshAllConfigs = async (groupsToUse?: DataGroup[]) => {
+  const refreshAllConfigs = async (groupsToUse?: DataGroup[], explicitSourceId?: string) => {
     const groups = groupsToUse || dataGroups;
-    console.log('Refreshing configs for groups:', groups.map(g => g.id));
+    const sourceId = explicitSourceId || (currentSource?.SOURCE_ID ? String(currentSource.SOURCE_ID) : undefined);
+    console.log('Refreshing configs for groups:', groups.map(g => g.id), 'Source Context:', sourceId);
     const all: SavedConfiguration[] = [];
     for (const group of groups) {
       try {
-        const configs = await apiService.fetchConfigsByGroup(group.id);
+        const configs = await apiService.fetchConfigsByGroup(group.id, sourceId);
         console.log(`Configs for ${group.id}:`, configs.length);
         all.push(...configs);
       } catch (err) {
@@ -228,11 +234,13 @@ const App: React.FC = () => {
     }
     console.log('Total Saved Configs:', all.length);
     setAllSavedConfigs(all);
+    return all;
   };
 
   // Helper: Load Project Context
-  const enterProject = async (project: any) => {
+  const enterProject = async (project: any, targetTab: 'modules' | 'sources' = 'sources') => {
     setCurrentProject(project);
+    setProjectActiveTab(targetTab);
     setView('project_detail');
   };
 
@@ -309,20 +317,16 @@ const App: React.FC = () => {
       }
 
       // Fetch ALL configs so we can filter for this source in the dashboard
-      await refreshAllConfigs(modules);
+      const allConfigs = await refreshAllConfigs(modules, String(source.SOURCE_ID));
 
+      // New Config Context:
+      setConfigName('');
+      setActiveConfigId(null);
     } catch (e) {
       console.error('Failed to load project modules', e);
       showToast('Error loading project modules', 'error');
     }
 
-    // New Config Context:
-    setConfigName(''); // Bind name
-    setActiveConfigId(null); // Reset ID
-
-    // IMPORTANT: We need to know the 'Source ID' when saving.
-    // We'll attach it to the save payload.
-    // Go to Dashboard first
     setView('source_dashboard');
     setLoadingConfig(false);
   };
@@ -664,6 +668,17 @@ const App: React.FC = () => {
   const handleCreateNewForGroup = async (group: DataGroup) => {
     if (isModified && !confirm("Discard unsaved changes?")) return;
 
+    // INTELLIGENT ROUTING: Only allow one registry per source per group.
+    // If one exists, load it.
+    const sourceId = currentSource?.SOURCE_ID ? String(currentSource.SOURCE_ID) : null;
+    const existing = allSavedConfigs.find(c => c.groupId === group.id && (c.sourceId === sourceId || !c.sourceId));
+
+    if (existing) {
+      await loadSavedConfig(existing);
+      return;
+    }
+
+    // Otherwise, start a fresh one for the first time
     setActiveConfigId(null);
     setConfigName('');
     setIsModified(false);
@@ -866,9 +881,12 @@ const App: React.FC = () => {
       <Layout onGoHome={() => setView('projects')}>
         {toast && <Toast message={toast.message} type={toast.type} />}
         <ProjectList
-          onSelectProject={enterProject}
+          key={`plist-${refreshKey}`}
+          onSelectProject={(proj) => enterProject(proj, 'sources')}
+          onManageModules={(proj) => enterProject(proj, 'modules')}
           onNavigateToArchitect={() => setView('custom_module')}
         />
+        <ChatBot view={view} onRefresh={handleAssistantRefresh} />
       </Layout>
     );
   }
@@ -878,12 +896,14 @@ const App: React.FC = () => {
       <Layout onGoHome={() => setView('projects')}>
         {toast && <Toast message={toast.message} type={toast.type} />}
         <ProjectDetail
+          key={`pdet-${refreshKey}`}
           project={currentProject}
           onBack={() => { setProjectActiveTab('modules'); setView('projects'); }}
           onSelectSource={(source) => enterSourceMapping(source)}
           initialTab={projectActiveTab}
           initialEditingSource={sourceToEditInProject}
         />
+        <ChatBot view={view} currentProject={currentProject} currentSource={currentSource} onRefresh={handleAssistantRefresh} />
       </Layout>
     );
   }
@@ -893,6 +913,7 @@ const App: React.FC = () => {
       <Layout onGoHome={() => setView('projects')}>
         {toast && <Toast message={toast.message} type={toast.type} />}
         <Dashboard
+          key={`db-${refreshKey}`}
           groups={dataGroups}
           configs={allSavedConfigs.filter(c => !c.sourceId || String(c.sourceId) === String(currentSource.SOURCE_ID))}
           onLoadConfig={loadSavedConfig}
@@ -901,7 +922,9 @@ const App: React.FC = () => {
           onExport={handleExport}
           onCreateNew={handleCreateNewForGroup}
           onBack={() => { setProjectActiveTab('sources'); setSourceToEditInProject(null); setView('project_detail'); }}
+          currentSource={currentSource}
         />
+        <ChatBot view={view} currentProject={currentProject} currentSource={currentSource} onRefresh={handleAssistantRefresh} />
       </Layout>
     );
   }
@@ -913,8 +936,7 @@ const App: React.FC = () => {
       {view === 'custom_module' ? (
         <CustomModuleCreation
           onBack={() => {
-            if (currentProject) setView('project_detail');
-            else setView('projects');
+            setView('projects');
           }}
           onCreate={handleCreateModule}
           allSchemas={dynamicSchemas}
@@ -926,12 +948,6 @@ const App: React.FC = () => {
             <section className="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
               <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                 <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System Catalog</h2>
-                <button
-                  onClick={handleNewRegistry}
-                  className="text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-tighter bg-blue-50 px-3 py-1 rounded-full border border-blue-100 transition-all"
-                >
-                  + New
-                </button>
               </div>
               <div className="p-4 space-y-2">
                 {(activeGroup ? [activeGroup] : dataGroups).map((group) => (
@@ -1444,6 +1460,13 @@ const App: React.FC = () => {
 
                 {/* Toolbar */}
                 <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl flex flex-col md:flex-row items-center gap-6">
+                  <button
+                    onClick={() => setView('source_dashboard')}
+                    className="p-4 bg-slate-50 text-slate-400 hover:text-blue-600 rounded-2xl border border-slate-100 transition-all hover:bg-white hover:shadow-md shrink-0"
+                    title="Return to Source Dashboard"
+                  >
+                    ←
+                  </button>
                   <div className="flex items-center gap-4 bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100 shrink-0">
                     <span className="text-xl">{selectedSchema.icon}</span>
                     <div className="flex flex-col">
@@ -1480,7 +1503,6 @@ const App: React.FC = () => {
                       schema={selectedSchema}
                       source={sourceData}
                       mappings={allMappings[selectedSchema.id] || []}
-                      onBack={() => setView('source_dashboard')}
                       onUpdateMapping={(newMapping) => {
                         // SAVE TO MEMORY if explicit mapping
                         if (newMapping.sourceHeader) {
@@ -1680,6 +1702,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      {view !== 'mapping' && <ChatBot view={view} currentProject={currentProject} currentSource={currentSource} onRefresh={handleAssistantRefresh} />}
     </Layout >
   );
 };

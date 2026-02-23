@@ -88,6 +88,7 @@ export interface ModuleObject {
   id: string;
   name: string;
   table: string;
+  moduleId?: number;
 }
 
 export interface DataGroup {

@@ -12,7 +12,6 @@ interface MappingInterfaceProps {
   isAutoMapping: boolean;
   onRemoveFile?: (fileName: string) => void;
   onSync: () => Promise<void>;
-  onBack?: () => void;
 }
 
 const TRANSFORMATION_META: Record<TransformationType, { label: string; icon: string; color: string; bg: string; border: string }> = {
@@ -52,8 +51,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
   onAutoMap,
   isAutoMapping,
   onRemoveFile,
-  onSync,
-  onBack
+  onSync
 }) => {
   const [activeTab, setActiveTab] = useState<'mapping' | 'preview'>('mapping');
   const [draggedHeader, setDraggedHeader] = useState<string | null>(null);
@@ -200,15 +198,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
   return (
     <div className="bg-white rounded-[2rem] shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] min-h-[600px]">
       <div className="flex items-center border-b border-slate-200 bg-slate-50 p-1.5 shrink-0">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="p-4 bg-white text-slate-400 hover:text-slate-900 rounded-2xl border border-slate-100 transition-colors mr-2 shadow-sm"
-            title="Return to Dashboard"
-          >
-            ←
-          </button>
-        )}
+
         <button
           onClick={() => setActiveTab('mapping')}
           className={`flex-1 px-8 py-4 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 ${activeTab === 'mapping' ? 'bg-white shadow-lg text-blue-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}

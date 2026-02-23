@@ -153,7 +153,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                         onClick={onBack}
                         className="px-6 py-3 bg-white border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all shadow-sm"
                     >
-                        ← Cancel
+                        ← Back
                     </button>
                 </div>
 

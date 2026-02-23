@@ -11,7 +11,7 @@ interface ProjectDetailProps {
     initialEditingSource?: any;
 }
 
-export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, onSelectSource, initialTab = 'modules', initialEditingSource = null }) => {
+export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, onSelectSource, initialTab = 'sources', initialEditingSource = null }) => {
     const [activeTab, setActiveTab] = useState<'modules' | 'sources'>(initialTab);
     const [projectModules, setProjectModules] = useState<any[]>([]);
     const [allModules, setAllModules] = useState<any[]>([]);
@@ -120,9 +120,6 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
         if (details) {
             setSelectedModuleIds(new Set(details.selectedModuleIds));
         } else {
-            // Default to all project modules if none selected yet?
-            // User requested selection, so maybe we start empty or with project modules.
-            // Let's start with project modules as default.
             const projectIds = new Set<number>();
             projectModules.forEach(group => {
                 group.objects.forEach((obj: any) => {
@@ -133,7 +130,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
         }
         setEditingSource(source);
         setIsEditingModules(true);
-        setActiveTab('modules'); // Switch to the modules tab where the grid is
+        // No need to switch tabs anymore as it's a modal
         setLoading(false);
     };
 
@@ -167,92 +164,67 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                         ← Back
                     </button>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-900 tracking-tight">{project.PROJECT_NAME}</h1>
+                        <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                            {project.PROJECT_NAME}
+                            <span className="text-[10px] bg-slate-100 text-slate-500 px-3 py-1 rounded-full border border-slate-200 uppercase tracking-widest font-black">Active Project</span>
+                        </h1>
                         <p className="text-sm text-slate-500">{project.DESCRIPTION}</p>
                     </div>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex items-center gap-3">
                     <button
-                        onClick={() => setActiveTab('modules')}
-                        className={`px-4 py-2 font-bold text-sm rounded-lg transition-all ${activeTab === 'modules' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+                        onClick={() => setShowCreateSource(true)}
+                        className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg shadow-blue-200 flex items-center gap-2"
                     >
-                        Modules
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('sources')}
-                        className={`px-4 py-2 font-bold text-sm rounded-lg transition-all ${activeTab === 'sources' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
-                    >
-                        Sources
+                        <span>+</span> New Source
                     </button>
                 </div>
             </div>
 
             <div className="flex-1 overflow-auto p-8 max-w-7xl mx-auto w-full">
-                {activeTab === 'modules' && (
-                    <div className="space-y-6 animate-in slide-in-from-bottom-2 fade-in duration-300">
-                        <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                            <div>
-                                <h2 className="text-xl font-bold text-slate-900">
-                                    {isEditingModules ? (editingSource ? `Modules for ${editingSource.SOURCE_NAME}` : 'Project Modules') : 'Active Catalog'}
-                                </h2>
-                                <p className="text-slate-500 text-sm">
-                                    {isEditingModules ? 'Only selected modules will be visible in the workflow.' : 'Modules available for this project context.'}
-                                </p>
+                {/* Module Edit Modal (Now a Popup) */}
+                {isEditingModules && (
+                    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+                        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-2xl animate-in zoom-in duration-300">
+                            <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-100">
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                        {editingSource ? `Source Scope: ${editingSource.SOURCE_NAME}` : 'Project Scope'}
+                                    </h2>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                        Select modules to enable for this {editingSource ? 'specific input' : 'project context'}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => { setIsEditingModules(false); setEditingSource(null); }}
+                                    className="p-2 hover:bg-slate-100 rounded-full text-slate-400"
+                                >
+                                    ✕
+                                </button>
                             </div>
-                            <div className="flex gap-3">
-                                {isEditingModules ? (
-                                    <>
-                                        <button
-                                            onClick={handleBack}
-                                            className="px-6 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            onClick={handleSaveModules}
-                                            className="px-6 py-2 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors shadow-lg shadow-green-200"
-                                        >
-                                            Save Selection
-                                        </button>
-                                    </>
-                                ) : (
-                                    <button
-                                        onClick={startModuleEdit}
-                                        className="bg-slate-900 text-white px-6 py-2 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-md shadow-slate-200"
-                                    >
-                                        Edit Modules
-                                    </button>
-                                )}
-                            </div>
-                        </div>
 
-                        {isEditingModules ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2 scrollbar-hide">
                                 {(editingSource ? projectModules : allModules).map(group => {
-                                    // Calculate group selection state
-                                    // Use allModules for editing project modules, or projectModules for editing source modules
                                     const modulesToFilter = editingSource ? projectModules : allModules;
                                     const currentGroup = modulesToFilter.find(m => m.id === group.id);
                                     if (!currentGroup) return null;
 
                                     const validObjects = group.objects.filter((o: any) => o.moduleId);
-                                    const allSelected = validObjects.length > 0 && validObjects.every((o: any) => selectedModuleIds.has(o.moduleId));
-                                    const someSelected = validObjects.some((o: any) => selectedModuleIds.has(o.moduleId));
+                                    const allSelected = validObjects.length > 0 && validObjects.every((o: any) => selectedModuleIds.has(Number(o.moduleId)));
+                                    const someSelected = validObjects.some((o: any) => selectedModuleIds.has(Number(o.moduleId)));
 
-                                    const toggleGroup = () => {
+                                    const toggleGroupLocal = () => {
                                         const next = new Set(selectedModuleIds);
                                         if (allSelected) {
-                                            // Deselect all
                                             validObjects.forEach((o: any) => next.delete(o.moduleId));
                                         } else {
-                                            // Select all
                                             validObjects.forEach((o: any) => next.add(o.moduleId));
                                         }
                                         setSelectedModuleIds(next);
                                     };
 
                                     return (
-                                        <div key={group.id} className="bg-white p-4 rounded-xl border border-slate-200">
+                                        <div key={group.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                                             <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
                                                 <h3 className="font-bold text-sm text-slate-400 uppercase flex items-center gap-2">
                                                     {group.icon || '📦'} {group.name}
@@ -265,32 +237,23 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                                                             input.indeterminate = someSelected && !allSelected;
                                                         }
                                                     }}
-                                                    onChange={toggleGroup}
+                                                    onChange={toggleGroupLocal}
                                                     className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                                    title="Select Entire Module"
                                                 />
                                             </div>
-                                            <div className="space-y-2 pl-2">
+                                            <div className="space-y-1">
                                                 {group.objects.map((obj: any) => {
                                                     const objModuleId = obj.moduleId;
-
-                                                    if (!objModuleId) {
-                                                        return (
-                                                            <div key={obj.id} className="text-xs text-red-400 p-1">
-                                                                Error: Missing ID for {obj.name}
-                                                            </div>
-                                                        );
-                                                    }
-
+                                                    if (!objModuleId) return null;
                                                     return (
-                                                        <label key={obj.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer select-none">
+                                                        <label key={obj.id} className="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer select-none border border-transparent hover:border-slate-100 transition-all">
                                                             <input
                                                                 type="checkbox"
-                                                                checked={selectedModuleIds.has(objModuleId)}
-                                                                onChange={() => toggleModule(objModuleId)}
+                                                                checked={selectedModuleIds.has(Number(objModuleId))}
+                                                                onChange={() => toggleModule(Number(objModuleId))}
                                                                 className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                                             />
-                                                            <span className="text-sm font-medium text-slate-700">{obj.name}</span>
+                                                            <span className="text-xs font-bold text-slate-700">{obj.name}</span>
                                                         </label>
                                                     )
                                                 })}
@@ -299,92 +262,92 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                                     );
                                 })}
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {projectModules.length === 0 ? (
-                                    <div className="col-span-full text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
-                                        <span className="text-4xl block mb-4">🧩</span>
-                                        <p className="text-slate-500 font-medium">No modules configured.</p>
-                                        <button onClick={startModuleEdit} className="text-blue-600 font-bold hover:underline mt-2">Select Modules</button>
-                                    </div>
-                                ) : (
-                                    projectModules.map(group => (
-                                        <div key={group.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-2xl bg-slate-50 p-2 rounded-lg">{group.icon}</span>
-                                                <h3 className="font-bold text-slate-900">{group.name}</h3>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                {group.objects.map((o: any) => (
-                                                    <span key={o.id} className="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-600 rounded-md">
-                                                        {o.name}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
+
+                            <div className="flex gap-4 mt-10 pt-6 border-t border-slate-100">
+                                <button
+                                    onClick={() => { setIsEditingModules(false); setEditingSource(null); }}
+                                    className="px-8 py-3 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200"
+                                >
+                                    Cancel
+                                </button>
+                                <div className="flex-1"></div>
+                                <button
+                                    onClick={handleSaveModules}
+                                    className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-200"
+                                >
+                                    Apply Scope
+                                </button>
                             </div>
-                        )}
+                        </div>
                     </div>
                 )}
 
-                {activeTab === 'sources' && (
-                    <div className="space-y-6 animate-in slide-in-from-bottom-2 fade-in duration-300">
+                {activeTab === 'sources' && !isEditingModules && (
+                    <div className="space-y-8 animate-in slide-in-from-bottom-2 fade-in duration-300">
                         <div className="flex justify-between items-center">
                             <div>
-                                <h2 className="text-xl font-bold text-slate-900">Data Sources</h2>
-                                <p className="text-slate-500 text-sm">Manage source data mappings for this project.</p>
+                                <h2 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.3em]">Project Workspaces</h2>
+                                <p className="text-slate-500 text-sm font-medium mt-1">Select an ingestion stream to begin mapping.</p>
                             </div>
-                            <button
-                                onClick={() => setShowCreateSource(true)}
-                                className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md shadow-blue-200"
-                            >
-                                + New Source
-                            </button>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             {sources.map(src => (
                                 <div
                                     key={src.SOURCE_ID}
-                                    className="bg-white p-6 rounded-2xl border border-slate-200 hover:border-blue-400 hover:shadow-lg transition-all group/item flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                                    onClick={() => onSelectSource(src, projectModules)}
+                                    className="bg-white p-0 rounded-[2.5rem] border border-slate-200 hover:border-blue-500 hover:shadow-[0_20px_50px_rgba(59,130,246,0.1)] transition-all group/item flex flex-col cursor-pointer overflow-hidden relative shadow-sm"
                                 >
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-3">
-                                            <h3 className="font-bold text-lg text-slate-900 group-hover/item:text-blue-600 transition-colors">{src.SOURCE_NAME}</h3>
-                                            {src.MODULE_COUNT !== undefined && (
-                                                <span className="text-[10px] font-black uppercase text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                                                    {src.MODULE_COUNT} Modules
-                                                </span>
-                                            )}
+                                    {/* Top Accent */}
+                                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+
+                                    <div className="p-7 flex-1 flex flex-col justify-between">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-[1.25rem] border border-blue-100 group-hover/item:scale-110 transition-all shadow-sm">
+                                                <span className="text-3xl grayscale group-hover/item:grayscale-0 transition-all block">📂</span>
+                                            </div>
+                                            <button
+                                                onClick={(e) => startSourceModuleEdit(e, src)}
+                                                className="px-3 py-1.5 bg-white text-blue-600 hover:text-white hover:bg-blue-600 rounded-xl transition-all text-[9px] font-black uppercase tracking-widest border border-blue-100 hover:border-blue-600 shadow-sm flex items-center gap-1.5"
+                                                title="Manage Source Modules"
+                                            >
+                                                <span>🧩</span> Scope
+                                            </button>
                                         </div>
-                                        <p className="text-slate-500 text-sm mt-1">{src.DESCRIPTION || 'No description provided.'}</p>
-                                        <div className="flex items-center gap-4 mt-2">
-                                            <span className="text-xs text-slate-400 font-medium">Created: {new Date(src.CREATED_AT).toLocaleDateString()}</span>
+
+                                        <div>
+                                            <h3 className="font-black text-base text-slate-800 leading-tight uppercase tracking-tight group-hover/item:text-blue-600 transition-colors mb-1">{src.SOURCE_NAME}</h3>
+                                            <p className="text-slate-400 text-[10px] font-bold line-clamp-2 uppercase tracking-tighter leading-snug">{src.DESCRIPTION || 'Core data source'}</p>
+                                        </div>
+
+                                        <div className="mt-6 pt-5 border-t border-slate-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                <span className="text-[8px] text-slate-400 font-black uppercase tracking-widest">Linked</span>
+                                            </div>
+                                            <span className="text-[8px] text-slate-300 font-black uppercase tracking-widest">{new Date(src.CREATED_AT).toLocaleDateString()}</span>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-3 w-full md:w-auto">
-                                        <button
-                                            onClick={(e) => startSourceModuleEdit(e, src)}
-                                            className="px-4 py-2 bg-slate-50 text-slate-500 border border-slate-200 rounded-xl text-[10px] font-black uppercase hover:bg-slate-100 hover:text-slate-700 transition-all flex items-center gap-2"
-                                        >
-                                            <span>⚙️</span> Modules
-                                        </button>
-                                        <button
-                                            onClick={() => onSelectSource(src, projectModules)}
-                                            className="px-6 py-2 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 flex items-center gap-2"
-                                        >
-                                            Open Dashboard <span>→</span>
-                                        </button>
+                                    <div className="bg-slate-50 p-5 flex items-center justify-between group-hover/item:bg-slate-900 transition-all border-t border-slate-100 group-hover/item:border-slate-900">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] group-hover/item:text-blue-400 group-hover/item:translate-x-1 transition-all">Launch Workspace</span>
+                                        <div className="w-8 h-8 rounded-full bg-white group-hover/item:bg-blue-600 flex items-center justify-center transition-all shadow-sm group-hover/item:shadow-blue-500/20">
+                                            <span className="text-slate-400 group-hover/item:text-white transition-all transform group-hover/item:translate-x-0.5">→</span>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
                             {sources.length === 0 && (
-                                <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
-                                    <span className="text-4xl block mb-4">📂</span>
-                                    <p className="text-slate-500 font-medium">No sources created yet.</p>
+                                <div className="col-span-full text-center py-20 bg-white rounded-[3rem] border border-dashed border-slate-200">
+                                    <span className="text-6xl block mb-6 grayscale opacity-20">📭</span>
+                                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter mb-2">No Active Sources</h2>
+                                    <p className="text-slate-400 font-medium mb-8">Deploy a data source to begin mapping architectures.</p>
+                                    <button
+                                        onClick={() => setShowCreateSource(true)}
+                                        className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-xl shadow-slate-200"
+                                    >
+                                        Deploy First Source
+                                    </button>
                                 </div>
                             )}
                         </div>

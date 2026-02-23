@@ -107,9 +107,12 @@ export const apiService = {
     }
   },
 
-  fetchConfigsByGroup: async (groupId: string): Promise<SavedConfiguration[]> => {
+  fetchConfigsByGroup: async (groupId: string, sourceId?: string): Promise<SavedConfiguration[]> => {
     try {
-      const response = await fetch(`${API_URL}/modules/${groupId}/registries`);
+      const url = sourceId
+        ? `${API_URL}/modules/${groupId}/registries?sourceId=${sourceId}`
+        : `${API_URL}/modules/${groupId}/registries`;
+      const response = await fetch(url);
       if (!response.ok) return [];
       const configs = await response.json();
       return configs.map((c: any) => ({

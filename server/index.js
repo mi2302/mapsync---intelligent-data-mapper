@@ -607,6 +607,7 @@ app.get('/api/registry', async (req, res) => {
 // Fetch Registries by Module (Group)
 app.get('/api/modules/:moduleName/registries', async (req, res) => {
     const { moduleName } = req.params;
+    const { sourceId } = req.query;
     let connection;
     try {
         const pool = await getPool();
@@ -619,28 +620,35 @@ app.get('/api/modules/:moduleName/registries', async (req, res) => {
 
         const searchNames = [moduleName];
         findNames.rows.forEach(r => {
-            if (nameToId(r[0]) === moduleName.toLowerCase()) {
-                searchNames.push(r[0]);
+            const mname = typeof r[0] === 'string' ? r[0] : (r.MODULE_NAME || '');
+            if (nameToId(mname) === moduleName.toLowerCase()) {
+                searchNames.push(mname);
             }
         });
 
-        const regResult = await connection.execute(
-            `SELECT REGISTRY_ID, REGISTRY_NAME, MODULE_NAME, SOURCE_ID 
-             FROM MSAI_REGISTRY 
-             WHERE UPPER(MODULE_NAME) IN (${searchNames.map((_, i) => `:mod${i}`).join(',')})`,
-            searchNames.reduce((acc, name, i) => ({ ...acc, [`mod${i}`]: name.toUpperCase() }), {}),
-            { outFormat: oracledb.OUT_FORMAT_OBJECT }
-        );
+        const bindVars = {};
+        searchNames.forEach((name, i) => {
+            bindVars[`mod${i}`] = name.toUpperCase();
+        });
+
+        let query = `SELECT REGISTRY_ID, REGISTRY_NAME, MODULE_NAME, SOURCE_ID 
+                     FROM MSAI_REGISTRY 
+                     WHERE UPPER(MODULE_NAME) IN (${searchNames.map((_, i) => `:mod${i}`).join(',')})`;
+
+        if (sourceId && sourceId !== 'undefined' && sourceId !== 'null') {
+            query += ` AND SOURCE_ID = :sid`;
+            bindVars['sid'] = sourceId;
+        }
+
+        const regResult = await connection.execute(query, bindVars, { outFormat: oracledb.OUT_FORMAT_OBJECT });
 
         const configs = await buildRegistryConfigs(connection, regResult.rows);
         res.json(configs);
     } catch (err) {
-        console.error('Fetch Module Registry Error:', err);
+        console.error('Fetch Registry by Group Error:', err);
         res.status(500).json({ success: false, message: err.message });
     } finally {
-        if (connection) {
-            try { await connection.close(); } catch (err) { console.error(err); }
-        }
+        if (connection) await connection.close();
     }
 });
 
