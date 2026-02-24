@@ -336,8 +336,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onMan
                                 </span>
                             </div>
 
-                            <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-600 transition-colors mb-2 leading-tight uppercase tracking-tight">{proj.PROJECT_NAME}</h3>
-                            <p className="text-slate-400 text-xs font-bold line-clamp-3 mb-6 uppercase tracking-tight leading-relaxed">{proj.DESCRIPTION || 'Enterprise data mapping initiative'}</p>
+                            <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-600 transition-colors mb-2 leading-tight tracking-tight">{proj.PROJECT_NAME}</h3>
+                            <p className="text-slate-400 text-xs font-bold line-clamp-3 mb-6 tracking-tight leading-relaxed">{proj.DESCRIPTION || 'Enterprise data mapping initiative'}</p>
                         </div>
 
                         <div className="flex gap-3">

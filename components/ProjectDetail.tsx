@@ -316,8 +316,8 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                                         </div>
 
                                         <div>
-                                            <h3 className="font-black text-base text-slate-800 leading-tight uppercase tracking-tight group-hover/item:text-blue-600 transition-colors mb-1">{src.SOURCE_NAME}</h3>
-                                            <p className="text-slate-400 text-[10px] font-bold line-clamp-2 uppercase tracking-tighter leading-snug">{src.DESCRIPTION || 'Core data source'}</p>
+                                            <h3 className="font-black text-base text-slate-800 leading-tight tracking-tight group-hover/item:text-blue-600 transition-colors mb-1">{src.SOURCE_NAME}</h3>
+                                            <p className="text-slate-400 text-[10px] font-bold line-clamp-2 tracking-tighter leading-snug">{src.DESCRIPTION || 'Core data source'}</p>
                                         </div>
 
                                         <div className="mt-6 pt-5 border-t border-slate-50 flex items-center justify-between">

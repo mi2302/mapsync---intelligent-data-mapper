@@ -203,7 +203,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                             onClick={() => removeStaged(idx)}
                                             className="absolute top-2 right-2 w-6 h-6 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
                                         >✕</button>
-                                        <p className="text-[10px] font-black text-white uppercase truncate">{d.logicalName}</p>
+                                        <p className="text-[10px] font-black text-white truncate">{d.logicalName}</p>
                                         <p className="text-[8px] font-bold text-slate-500 uppercase mt-1">MSAI_{d.name}</p>
                                         <div className="flex gap-1 mt-2 flex-wrap">
                                             {d.columns.map((c, i) => (

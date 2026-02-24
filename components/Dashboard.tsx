@@ -29,7 +29,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
             </button>
           )}
           <div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase mb-1 flex items-center gap-3">
+            <h1 className="text-4xl font-black text-slate-900 tracking-tighter mb-1 flex items-center gap-3">
               {currentSource?.SOURCE_NAME || 'Source'} Dashboard
               <span className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full border border-blue-100 tracking-widest">Active</span>
             </h1>
@@ -84,7 +84,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
                       className="group/item flex items-center justify-between p-4 bg-slate-50 border border-transparent hover:border-blue-200 hover:bg-white rounded-2xl transition-all cursor-pointer shadow-sm hover:shadow-md"
                     >
                       <div className="flex flex-col truncate">
-                        <span className="text-[10px] font-black text-slate-700 uppercase truncate group-hover/item:text-blue-600">{config.name}</span>
+                        <span className="text-[10px] font-black text-slate-700 truncate group-hover/item:text-blue-600">{config.name}</span>
                         <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{Object.keys(config.objectMappings).length} Data Objects mapped</span>
                       </div>
                       <div className="flex items-center gap-2 transition-opacity">
