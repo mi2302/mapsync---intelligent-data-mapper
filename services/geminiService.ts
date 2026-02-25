@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { GoogleGenAI, Type } from "@google/genai";
-import { SchemaDefinition, FieldMapping } from "../types";
+import { SchemaDefinition, FieldMapping, DataType } from "../types";
 
 const api_key = import.meta.env.VITE_GEMINI_API_KEY || "";
 const isDemoMode = !api_key || api_key === 'PLACEHOLDER_API_KEY';
@@ -277,4 +277,41 @@ function parseChatIntentLocal(userInput: string, context: { view?: string, curre
     entities: {},
     responseHint: "I can help with projects, sources, and module assignments. Try 'Add module X to this project' or 'Remove object Y from current source'."
   };
+}
+
+export async function suggestColumns(
+  objectName: string
+): Promise<{ name: string, type: DataType, reason: string }[]> {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: `Provide a comprehensive, production-ready database schema for a "${objectName}" entity. Include standard administrative fields and specific domain attributes.`,
+      config: {
+        systemInstruction: `You are an expert Data Architect. Generate 8-12 logically sound database columns for the requested entity.
+        - Types: MUST be 'VARCHAR', 'NUMERIC', 'TIMESTAMP', or 'BOOLEAN'.
+        - Names: UPPERCASE, underscores, max 26 chars.
+        - Context: Focus on industry-standard attributes for "${objectName}".
+        - Structure: Return a clean JSON array of objects.`,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              type: { type: Type.STRING, enum: ['VARCHAR', 'NUMERIC', 'TIMESTAMP', 'BOOLEAN'] },
+              reason: { type: Type.STRING }
+            },
+            required: ["name", "type", "reason"]
+          }
+        }
+      }
+    });
+
+    const text = response.text || "[]";
+    return JSON.parse(text);
+  } catch (error) {
+    console.error("Gemini Column Suggestion Error:", error);
+    return [];
+  }
 }

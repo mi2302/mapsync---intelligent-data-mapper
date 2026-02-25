@@ -556,7 +556,7 @@ const App: React.FC = () => {
           name: obj.name,
           icon: obj.type === 'database' ? '🔗' : '⚡',
           table_name: tableName,
-          fields: []
+          fields: obj.fields || []
         };
       }
     });

@@ -38,56 +38,107 @@ export const SCHEMAS: Record<string, SchemaDefinition> = {
     name: 'Employee Master',
     icon: '👤',
     table_name: 'msai_hr_employee_master',
-    fields: []
+    fields: [
+      { id: '1', column_name: 'PERSON_ID', label: 'Person ID', type: 'NUMERIC', required: true, description: 'Internal unique identifier' },
+      { id: '2', column_name: 'EMPLOYEE_NUMBER', label: 'Emp No', type: 'VARCHAR', required: true, description: 'Public employee ID' },
+      { id: '3', column_name: 'FIRST_NAME', label: 'First Name', type: 'VARCHAR', required: true, description: '' },
+      { id: '4', column_name: 'LAST_NAME', label: 'Last Name', type: 'VARCHAR', required: true, description: '' },
+      { id: '5', column_name: 'EMAIL_ADDRESS', label: 'Email', type: 'VARCHAR', required: false, description: '' },
+      { id: '6', column_name: 'DATE_OF_HIRE', label: 'Hire Date', type: 'TIMESTAMP', required: true, description: '' },
+      { id: '7', column_name: 'DEPARTMENT_CODE', label: 'Dept', type: 'VARCHAR', required: false, description: '' }
+    ]
   },
   [SchemaTypes.ASSIGNMENT]: {
     id: SchemaTypes.ASSIGNMENT,
     name: 'Assignment Records',
     icon: '📋',
     table_name: 'msai_hr_assignments',
-    fields: []
+    fields: [
+      { id: '1', column_name: 'ASSIGNMENT_ID', label: 'Assignment ID', type: 'NUMERIC', required: true, description: '' },
+      { id: '2', column_name: 'PERSON_ID', label: 'Person ID', type: 'NUMERIC', required: true, description: 'FK to Employee' },
+      { id: '3', column_name: 'JOB_TITLE', label: 'Job Title', type: 'VARCHAR', required: true, description: '' },
+      { id: '4', column_name: 'START_DATE', label: 'Start Date', type: 'TIMESTAMP', required: true, description: '' },
+      { id: '5', column_name: 'IS_REMOTE', label: 'Remote?', type: 'BOOLEAN', required: false, description: '' }
+    ]
   },
   [SchemaTypes.PAYROLL]: {
     id: SchemaTypes.PAYROLL,
     name: 'Payroll Data',
     icon: '💰',
     table_name: 'fin_payroll_run',
-    fields: []
+    fields: [
+      { id: '1', column_name: 'PAY_RUN_ID', label: 'Pay Run ID', type: 'NUMERIC', required: true, description: '' },
+      { id: '2', column_name: 'PAY_PERIOD', label: 'Period', type: 'VARCHAR', required: true, description: '' },
+      { id: '3', column_name: 'GROSS_AMOUNT', label: 'Gross', type: 'NUMERIC', required: true, description: '' },
+      { id: '4', column_name: 'NET_AMOUNT', label: 'Net', type: 'NUMERIC', required: true, description: '' },
+      { id: '5', column_name: 'CURRENCY_CODE', label: 'Currency', type: 'VARCHAR', required: true, description: '' }
+    ]
   },
   [SchemaTypes.INVOICE_HEADER]: {
     id: SchemaTypes.INVOICE_HEADER,
     name: 'Invoice Header',
     icon: '📄',
     table_name: 'ap_invoice_headers',
-    fields: []
+    fields: [
+      { id: '1', column_name: 'INVOICE_ID', label: 'Invoice ID', type: 'NUMERIC', required: true, description: '' },
+      { id: '2', column_name: 'INVOICE_NUM', label: 'Invoice #', type: 'VARCHAR', required: true, description: '' },
+      { id: '3', column_name: 'VENDOR_ID', label: 'Vendor ID', type: 'NUMERIC', required: true, description: '' },
+      { id: '4', column_name: 'INVOICE_DATE', label: 'Date', type: 'TIMESTAMP', required: true, description: '' },
+      { id: '5', column_name: 'INVOICE_AMOUNT', label: 'Amount', type: 'NUMERIC', required: true, description: '' }
+    ]
   },
   [SchemaTypes.INVOICE_LINES]: {
     id: SchemaTypes.INVOICE_LINES,
     name: 'Invoice Lines',
     icon: '🔢',
     table_name: 'ap_invoice_lines',
-    fields: []
+    fields: [
+      { id: '1', column_name: 'LINE_ID', label: 'Line ID', type: 'NUMERIC', required: true, description: '' },
+      { id: '2', column_name: 'INVOICE_ID', label: 'Invoice ID', type: 'NUMERIC', required: true, description: '' },
+      { id: '3', column_name: 'LINE_NUMBER', label: 'Line #', type: 'NUMERIC', required: true, description: '' },
+      { id: '4', column_name: 'DESCRIPTION', label: 'Desc', type: 'VARCHAR', required: false, description: '' },
+      { id: '5', column_name: 'AMOUNT', label: 'Amount', type: 'NUMERIC', required: true, description: '' }
+    ]
   },
   [SchemaTypes.SUPPLIER_HEADER]: {
     id: SchemaTypes.SUPPLIER_HEADER,
     name: 'Supplier Header',
     icon: '🏢',
     table_name: 'pur_suppliers',
-    fields: []
+    fields: [
+      { id: '1', column_name: 'VENDOR_ID', label: 'Vendor ID', type: 'NUMERIC', required: true, description: 'Unique vendor identifier' },
+      { id: '2', column_name: 'VENDOR_NAME', label: 'Vendor Name', type: 'VARCHAR', required: true, description: 'Official registration name' },
+      { id: '3', column_name: 'SEGMENT1', label: 'Vendor Num', type: 'VARCHAR', required: true, description: 'Public facing vendor code' },
+      { id: '4', column_name: 'VENDOR_TYPE_LOOKUP_CODE', label: 'Type', type: 'VARCHAR', required: false, description: 'Category of supplier' },
+      { id: '5', column_name: 'TAX_REGISTRATION_NUM', label: 'TAX ID', type: 'VARCHAR', required: false, description: 'Government tax identifier' },
+      { id: '6', column_name: 'ENABLED_FLAG', label: 'Active', type: 'BOOLEAN', required: true, description: 'Current status' }
+    ]
   },
   [SchemaTypes.SUPPLIER_SITES]: {
     id: SchemaTypes.SUPPLIER_SITES,
     name: 'Supplier Sites',
     icon: '📍',
     table_name: 'pur_vendor_sites',
-    fields: []
+    fields: [
+      { id: '1', column_name: 'VENDOR_SITE_ID', label: 'Site ID', type: 'NUMERIC', required: true, description: '' },
+      { id: '2', column_name: 'VENDOR_ID', label: 'Vendor ID', type: 'NUMERIC', required: true, description: '' },
+      { id: '3', column_name: 'VENDOR_SITE_CODE', label: 'Site Code', type: 'VARCHAR', required: true, description: '' },
+      { id: '4', column_name: 'ADDRESS_LINE1', label: 'Address', type: 'VARCHAR', required: false, description: '' },
+      { id: '5', column_name: 'CITY', label: 'City', type: 'VARCHAR', required: false, description: '' },
+      { id: '6', column_name: 'COUNTRY', label: 'Country', type: 'VARCHAR', required: true, description: '' }
+    ]
   },
   [SchemaTypes.SUPPLIER_TAX]: {
     id: SchemaTypes.SUPPLIER_TAX,
     name: 'Tax Information',
     icon: '🛡️',
     table_name: 'pur_vendor_tax_profiles',
-    fields: []
+    fields: [
+      { id: '1', column_name: 'TAX_PROFILE_ID', label: 'Profile ID', type: 'NUMERIC', required: true, description: '' },
+      { id: '2', column_name: 'PARTY_ID', label: 'Party ID', type: 'NUMERIC', required: true, description: '' },
+      { id: '3', column_name: 'TAX_REGISTRATION_NUMBER', label: 'Tax Num', type: 'VARCHAR', required: true, description: '' },
+      { id: '4', column_name: 'TAX_CLASSIFICATION_CODE', label: 'Tax Code', type: 'VARCHAR', required: false, description: '' }
+    ]
   }
 };
 

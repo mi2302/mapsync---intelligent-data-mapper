@@ -106,15 +106,20 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onMan
                 <div className="flex gap-4">
                     <button
                         onClick={onNavigateToArchitect}
-                        className="bg-white text-slate-900 border border-slate-200 px-6 py-3 rounded-xl font-bold hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-2"
+                        className="group relative px-8 py-4 bg-white text-slate-900 border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:border-blue-600 hover:text-blue-600 transition-all shadow-sm overflow-hidden"
                     >
-                        <span>🏗️</span> Architect
+                        <div className="absolute inset-0 bg-blue-50/50 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                        <span className="relative flex items-center gap-3">
+                            <span className="text-xl group-hover:rotate-12 transition-transform">🏗️</span>
+                            Architect Mode
+                        </span>
                     </button>
                     <button
                         onClick={() => { setShowCreate(true); setCreateStep(1); setSelectedModuleIds(new Set()); }}
-                        className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg"
+                        className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-blue-600 transition-all shadow-xl shadow-slate-200 flex items-center gap-3 group"
                     >
-                        + New Project
+                        <span className="text-xl group-hover:scale-125 transition-transform">+</span>
+                        New Project
                     </button>
                 </div>
             </div>
