@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./server
+    ports:
+      - "3005:3005"
+    env_file:
+      - ./server/.env
+    environment:
+      - ORACLE_THIN_MODE=true
+    restart: always
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3003"
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    restart: always

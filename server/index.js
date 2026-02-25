@@ -16,12 +16,18 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Enable Thick mode manually
-try {
-    oracledb.initOracleClient({ libDir: path.join(__dirname, 'instantclient_19_19') });
-} catch (err) {
-    console.error('Failed to initialize Oracle Client:', err);
-    process.exit(1);
+// Enable Thick mode manually (Optional: Set ORACLE_THIN_MODE=true to skip this in Docker)
+if (process.env.ORACLE_THIN_MODE !== 'true') {
+    try {
+        oracledb.initOracleClient({ libDir: path.join(__dirname, 'instantclient_19_19') });
+        console.log('✅ Oracle Thick Mode initialized');
+    } catch (err) {
+        console.error('Failed to initialize Oracle Client (Thick Mode):', err);
+        console.log('💡 Tip: If you are in Docker, set ORACLE_THIN_MODE=true to use Thin mode.');
+        process.exit(1);
+    }
+} else {
+    console.log('🚀 Oracle Thin Mode enabled (No Instant Client required)');
 }
 
 // Helper to get DB config consistently

@@ -4,8 +4,8 @@ import { SCHEMAS, DATA_GROUPS } from '../constants';
 
 const STORAGE_KEY = 'mapsync_group_configs';
 
-// Backend API URL
-const API_URL = 'http://localhost:3005/api';
+// Backend API URL (use env var for Docker/Production compatibility)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3005/api';
 
 export const apiService = {
   fetchDataGroups: async (): Promise<DataGroup[]> => {
