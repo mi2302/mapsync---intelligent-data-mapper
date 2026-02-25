@@ -43,9 +43,16 @@ export const SCHEMAS: Record<string, SchemaDefinition> = {
       { id: '2', column_name: 'EMPLOYEE_NUMBER', label: 'Emp No', type: 'VARCHAR', required: true, description: 'Public employee ID' },
       { id: '3', column_name: 'FIRST_NAME', label: 'First Name', type: 'VARCHAR', required: true, description: '' },
       { id: '4', column_name: 'LAST_NAME', label: 'Last Name', type: 'VARCHAR', required: true, description: '' },
-      { id: '5', column_name: 'EMAIL_ADDRESS', label: 'Email', type: 'VARCHAR', required: false, description: '' },
-      { id: '6', column_name: 'DATE_OF_HIRE', label: 'Hire Date', type: 'TIMESTAMP', required: true, description: '' },
-      { id: '7', column_name: 'DEPARTMENT_CODE', label: 'Dept', type: 'VARCHAR', required: false, description: '' }
+      { id: '5', column_name: 'FULL_NAME', label: 'Full Name', type: 'VARCHAR', required: false, description: '' },
+      { id: '6', column_name: 'EMAIL_ADDRESS', label: 'Email', type: 'VARCHAR', required: false, description: '' },
+      { id: '7', column_name: 'DATE_OF_HIRE', label: 'Hire Date', type: 'TIMESTAMP', required: true, description: '' },
+      { id: '8', column_name: 'TERMINATION_DATE', label: 'Term Date', type: 'TIMESTAMP', required: false, description: '' },
+      { id: '9', column_name: 'DEPARTMENT_CODE', label: 'Dept', type: 'VARCHAR', required: false, description: '' },
+      { id: '10', column_name: 'JOB_CODE', label: 'Job', type: 'VARCHAR', required: false, description: '' },
+      { id: '11', column_name: 'MANAGER_ID', label: 'Manager ID', type: 'NUMERIC', required: false, description: '' },
+      { id: '12', column_name: 'OFFICE_LOCATION', label: 'Office', type: 'VARCHAR', required: false, description: '' },
+      { id: '13', column_name: 'EMPLOYMENT_TYPE', label: 'Type', type: 'VARCHAR', required: true, description: 'FTE/Contractor' },
+      { id: '14', column_name: 'CITIZENSHIP_CODE', label: 'Citizenship', type: 'VARCHAR', required: false, description: '' }
     ]
   },
   [SchemaTypes.ASSIGNMENT]: {
@@ -56,9 +63,14 @@ export const SCHEMAS: Record<string, SchemaDefinition> = {
     fields: [
       { id: '1', column_name: 'ASSIGNMENT_ID', label: 'Assignment ID', type: 'NUMERIC', required: true, description: '' },
       { id: '2', column_name: 'PERSON_ID', label: 'Person ID', type: 'NUMERIC', required: true, description: 'FK to Employee' },
-      { id: '3', column_name: 'JOB_TITLE', label: 'Job Title', type: 'VARCHAR', required: true, description: '' },
-      { id: '4', column_name: 'START_DATE', label: 'Start Date', type: 'TIMESTAMP', required: true, description: '' },
-      { id: '5', column_name: 'IS_REMOTE', label: 'Remote?', type: 'BOOLEAN', required: false, description: '' }
+      { id: '3', column_name: 'ASSIGNMENT_NUMBER', label: 'Assign Num', type: 'VARCHAR', required: true, description: '' },
+      { id: '4', column_name: 'JOB_TITLE', label: 'Job Title', type: 'VARCHAR', required: true, description: '' },
+      { id: '5', column_name: 'START_DATE', label: 'Start Date', type: 'TIMESTAMP', required: true, description: '' },
+      { id: '6', column_name: 'END_DATE', label: 'End Date', type: 'TIMESTAMP', required: false, description: '' },
+      { id: '7', column_name: 'ASSIGNMENT_STATUS', label: 'Status', type: 'VARCHAR', required: true, description: 'ACTIVE/SUSPENDED' },
+      { id: '8', column_name: 'IS_REMOTE', label: 'Remote?', type: 'BOOLEAN', required: false, description: '' },
+      { id: '9', column_name: 'WORK_CITY', label: 'Work City', type: 'VARCHAR', required: false, description: '' },
+      { id: '10', column_name: 'PAY_BASIS', label: 'Pay Basis', type: 'VARCHAR', required: false, description: 'Monthly/Hourly' }
     ]
   },
   [SchemaTypes.PAYROLL]: {
@@ -68,10 +80,15 @@ export const SCHEMAS: Record<string, SchemaDefinition> = {
     table_name: 'fin_payroll_run',
     fields: [
       { id: '1', column_name: 'PAY_RUN_ID', label: 'Pay Run ID', type: 'NUMERIC', required: true, description: '' },
-      { id: '2', column_name: 'PAY_PERIOD', label: 'Period', type: 'VARCHAR', required: true, description: '' },
-      { id: '3', column_name: 'GROSS_AMOUNT', label: 'Gross', type: 'NUMERIC', required: true, description: '' },
-      { id: '4', column_name: 'NET_AMOUNT', label: 'Net', type: 'NUMERIC', required: true, description: '' },
-      { id: '5', column_name: 'CURRENCY_CODE', label: 'Currency', type: 'VARCHAR', required: true, description: '' }
+      { id: '2', column_name: 'PAY_PERIOD_NAME', label: 'Period', type: 'VARCHAR', required: true, description: 'e.g. JAN-2024' },
+      { id: '3', column_name: 'PERSON_ID', label: 'Person ID', type: 'NUMERIC', required: true, description: '' },
+      { id: '4', column_name: 'GROSS_AMOUNT', label: 'Gross', type: 'NUMERIC', required: true, description: '' },
+      { id: '5', column_name: 'NET_AMOUNT', label: 'Net', type: 'NUMERIC', required: true, description: '' },
+      { id: '6', column_name: 'TAX_AMOUNT', label: 'Tax', type: 'NUMERIC', required: false, description: '' },
+      { id: '7', column_name: 'CURRENCY_CODE', label: 'Currency', type: 'VARCHAR', required: true, description: '' },
+      { id: '8', column_name: 'PAYMENT_DATE', label: 'Pay Date', type: 'TIMESTAMP', required: true, description: '' },
+      { id: '9', column_name: 'BANK_ACCOUNT_NUM', label: 'Bank Acc', type: 'VARCHAR', required: false, description: '' },
+      { id: '10', column_name: 'CHECK_NUMBER', label: 'Check #', type: 'VARCHAR', required: false, description: '' }
     ]
   },
   [SchemaTypes.INVOICE_HEADER]: {
@@ -83,8 +100,13 @@ export const SCHEMAS: Record<string, SchemaDefinition> = {
       { id: '1', column_name: 'INVOICE_ID', label: 'Invoice ID', type: 'NUMERIC', required: true, description: '' },
       { id: '2', column_name: 'INVOICE_NUM', label: 'Invoice #', type: 'VARCHAR', required: true, description: '' },
       { id: '3', column_name: 'VENDOR_ID', label: 'Vendor ID', type: 'NUMERIC', required: true, description: '' },
-      { id: '4', column_name: 'INVOICE_DATE', label: 'Date', type: 'TIMESTAMP', required: true, description: '' },
-      { id: '5', column_name: 'INVOICE_AMOUNT', label: 'Amount', type: 'NUMERIC', required: true, description: '' }
+      { id: '4', column_name: 'VENDOR_SITE_ID', label: 'Site ID', type: 'NUMERIC', required: true, description: '' },
+      { id: '5', column_name: 'INVOICE_DATE', label: 'Date', type: 'TIMESTAMP', required: true, description: '' },
+      { id: '6', column_name: 'INVOICE_AMOUNT', label: 'Amount', type: 'NUMERIC', required: true, description: '' },
+      { id: '7', column_name: 'CURRENCY_CODE', label: 'Currency', type: 'VARCHAR', required: true, description: '' },
+      { id: '8', column_name: 'TERMS_ID', label: 'Terms ID', type: 'NUMERIC', required: false, description: '' },
+      { id: '9', column_name: 'DESCRIPTION', label: 'Desc', type: 'VARCHAR', required: false, description: '' },
+      { id: '10', column_name: 'BATCH_ID', label: 'Batch ID', type: 'NUMERIC', required: false, description: '' }
     ]
   },
   [SchemaTypes.INVOICE_LINES]: {
@@ -96,8 +118,13 @@ export const SCHEMAS: Record<string, SchemaDefinition> = {
       { id: '1', column_name: 'LINE_ID', label: 'Line ID', type: 'NUMERIC', required: true, description: '' },
       { id: '2', column_name: 'INVOICE_ID', label: 'Invoice ID', type: 'NUMERIC', required: true, description: '' },
       { id: '3', column_name: 'LINE_NUMBER', label: 'Line #', type: 'NUMERIC', required: true, description: '' },
-      { id: '4', column_name: 'DESCRIPTION', label: 'Desc', type: 'VARCHAR', required: false, description: '' },
-      { id: '5', column_name: 'AMOUNT', label: 'Amount', type: 'NUMERIC', required: true, description: '' }
+      { id: '4', column_name: 'LINE_TYPE_CODE', label: 'Type', type: 'VARCHAR', required: true, description: 'ITEM/TAX/FREIGHT' },
+      { id: '5', column_name: 'AMOUNT', label: 'Amount', type: 'NUMERIC', required: true, description: '' },
+      { id: '6', column_name: 'QUANTITY_INVOICED', label: 'Qty', type: 'NUMERIC', required: false, description: '' },
+      { id: '7', column_name: 'UNIT_PRICE', label: 'Price', type: 'NUMERIC', required: false, description: '' },
+      { id: '8', column_name: 'DESCRIPTION', label: 'Desc', type: 'VARCHAR', required: false, description: '' },
+      { id: '9', column_name: 'PO_HEADER_ID', label: 'PO Head ID', type: 'NUMERIC', required: false, description: '' },
+      { id: '10', column_name: 'PO_LINE_ID', label: 'PO Line ID', type: 'NUMERIC', required: false, description: '' }
     ]
   },
   [SchemaTypes.SUPPLIER_HEADER]: {
@@ -111,7 +138,11 @@ export const SCHEMAS: Record<string, SchemaDefinition> = {
       { id: '3', column_name: 'SEGMENT1', label: 'Vendor Num', type: 'VARCHAR', required: true, description: 'Public facing vendor code' },
       { id: '4', column_name: 'VENDOR_TYPE_LOOKUP_CODE', label: 'Type', type: 'VARCHAR', required: false, description: 'Category of supplier' },
       { id: '5', column_name: 'TAX_REGISTRATION_NUM', label: 'TAX ID', type: 'VARCHAR', required: false, description: 'Government tax identifier' },
-      { id: '6', column_name: 'ENABLED_FLAG', label: 'Active', type: 'BOOLEAN', required: true, description: 'Current status' }
+      { id: '6', column_name: 'DUNS_NUMBER', label: 'DUNS', type: 'VARCHAR', required: false, description: '' },
+      { id: '7', column_name: 'PARENT_VENDOR_ID', label: 'Parent ID', type: 'NUMERIC', required: false, description: 'HQ connection' },
+      { id: '8', column_name: 'MINORITY_GROUP_LOOKUP_CODE', label: 'Diversity', type: 'VARCHAR', required: false, description: '' },
+      { id: '9', column_name: 'ENABLED_FLAG', label: 'Active', type: 'BOOLEAN', required: true, description: 'Current status' },
+      { id: '10', column_name: 'START_DATE_ACTIVE', label: 'Start Date', type: 'TIMESTAMP', required: false, description: '' }
     ]
   },
   [SchemaTypes.SUPPLIER_SITES]: {
@@ -123,9 +154,13 @@ export const SCHEMAS: Record<string, SchemaDefinition> = {
       { id: '1', column_name: 'VENDOR_SITE_ID', label: 'Site ID', type: 'NUMERIC', required: true, description: '' },
       { id: '2', column_name: 'VENDOR_ID', label: 'Vendor ID', type: 'NUMERIC', required: true, description: '' },
       { id: '3', column_name: 'VENDOR_SITE_CODE', label: 'Site Code', type: 'VARCHAR', required: true, description: '' },
-      { id: '4', column_name: 'ADDRESS_LINE1', label: 'Address', type: 'VARCHAR', required: false, description: '' },
-      { id: '5', column_name: 'CITY', label: 'City', type: 'VARCHAR', required: false, description: '' },
-      { id: '6', column_name: 'COUNTRY', label: 'Country', type: 'VARCHAR', required: true, description: '' }
+      { id: '4', column_name: 'ADDRESS_LINE1', label: 'Address 1', type: 'VARCHAR', required: false, description: '' },
+      { id: '5', column_name: 'ADDRESS_LINE2', label: 'Address 2', type: 'VARCHAR', required: false, description: '' },
+      { id: '6', column_name: 'CITY', label: 'City', type: 'VARCHAR', required: false, description: '' },
+      { id: '7', column_name: 'STATE', label: 'State', type: 'VARCHAR', required: false, description: '' },
+      { id: '8', column_name: 'ZIP', label: 'Zip', type: 'VARCHAR', required: false, description: '' },
+      { id: '9', column_name: 'COUNTRY', label: 'Country', type: 'VARCHAR', required: true, description: '' },
+      { id: '10', column_name: 'SITE_TYPE', label: 'Site Type', type: 'VARCHAR', required: false, description: 'PURCHASING/PAYMENT' }
     ]
   },
   [SchemaTypes.SUPPLIER_TAX]: {
@@ -137,7 +172,10 @@ export const SCHEMAS: Record<string, SchemaDefinition> = {
       { id: '1', column_name: 'TAX_PROFILE_ID', label: 'Profile ID', type: 'NUMERIC', required: true, description: '' },
       { id: '2', column_name: 'PARTY_ID', label: 'Party ID', type: 'NUMERIC', required: true, description: '' },
       { id: '3', column_name: 'TAX_REGISTRATION_NUMBER', label: 'Tax Num', type: 'VARCHAR', required: true, description: '' },
-      { id: '4', column_name: 'TAX_CLASSIFICATION_CODE', label: 'Tax Code', type: 'VARCHAR', required: false, description: '' }
+      { id: '4', column_name: 'TAX_REGIME_CODE', label: 'Regime', type: 'VARCHAR', required: true, description: '' },
+      { id: '5', column_name: 'TAX_CLASSIFICATION_CODE', label: 'Tax Code', type: 'VARCHAR', required: false, description: '' },
+      { id: '6', column_name: 'ALLOW_TAX_APPLICABILITY', label: 'Allow Tax', type: 'BOOLEAN', required: true, description: '' },
+      { id: '7', column_name: 'EFFECTIVE_FROM', label: 'From', type: 'TIMESTAMP', required: true, description: '' }
     ]
   }
 };

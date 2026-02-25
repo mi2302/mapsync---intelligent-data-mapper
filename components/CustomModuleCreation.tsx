@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { DataType, SchemaDefinition } from '../types';
+import { DataType, SchemaDefinition, DataGroup } from '../types';
 import { apiService } from '../services/apiService';
 import { suggestColumns } from '../services/geminiService';
 
@@ -8,32 +8,82 @@ interface CustomModuleCreationProps {
     onBack: () => void;
     onCreate: (name: string, icon: string, objects: any[]) => void;
     allSchemas: Record<string, SchemaDefinition>;
+    existingModules: DataGroup[];
 }
 
 type WizardStep = 'profile' | 'catalog' | 'editor';
+type ModuleColumn = { name: string, type: DataType, required: boolean, isPk: boolean };
 
-export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBack, onCreate, allSchemas }) => {
+export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBack, onCreate, allSchemas, existingModules }) => {
     // Wizard State
     const [step, setStep] = useState<WizardStep>('profile');
+    const [allRegisteredModules, setAllRegisteredModules] = useState<string[]>([]);
 
-    // Module Profile
-    const [name, setName] = useState('');
-    const [icon, setIcon] = useState('📦');
+    React.useEffect(() => {
+        const loadUniverse = async () => {
+            try {
+                const universe = await apiService.fetchLegacyUniverse();
+                const names = new Set<string>();
+                Object.values(universe || {}).forEach((s: any) => {
+                    if (s.moduleName) names.add(s.moduleName.toLowerCase().trim());
+                });
+                // Also add project modules
+                existingModules.forEach(m => names.add(m.name.toLowerCase().trim()));
+                setAllRegisteredModules(Array.from(names));
+            } catch (e) {
+                console.error("Failed to load module registry for validation", e);
+            }
+        };
+        loadUniverse();
+    }, [existingModules]);
 
-    // Staged Objects
+    // State with Persistence Load
+    const [name, setName] = useState(() => localStorage.getItem('mapsync_draft_name') || '');
+    const [icon, setIcon] = useState(() => localStorage.getItem('mapsync_draft_icon') || '📦');
     const [stagedObjects, setStagedObjects] = useState<{
         name: string,
         logicalName: string,
-        columns: any[],
+        columns: ModuleColumn[],
         registerGlobal: boolean
-    }[]>([]);
+    }[]>(() => {
+        const saved = localStorage.getItem('mapsync_draft_objects');
+        return saved ? JSON.parse(saved) : [];
+    });
 
-    // Current Editing Object State
+    // Auto-Save Effect
+    React.useEffect(() => {
+        localStorage.setItem('mapsync_draft_name', name);
+    }, [name]);
+
+    React.useEffect(() => {
+        localStorage.setItem('mapsync_draft_icon', icon);
+    }, [icon]);
+
+    React.useEffect(() => {
+        localStorage.setItem('mapsync_draft_objects', JSON.stringify(stagedObjects));
+    }, [stagedObjects]);
+
+    const clearDraft = () => {
+        if (confirm("This will permanently wipe your current draft blueprint. Continue?")) {
+            setName('');
+            setIcon('📦');
+            setStagedObjects([]);
+            setStep('profile');
+            setShowRecovery(false); // Reset recovery view so they see inputs
+            localStorage.removeItem('mapsync_draft_name');
+            localStorage.removeItem('mapsync_draft_icon');
+            localStorage.removeItem('mapsync_draft_objects');
+        }
+    };
+
+    const [showRecovery, setShowRecovery] = useState(() => (localStorage.getItem('mapsync_draft_name') || '').length > 0);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [dLogicalName, setDLogicalName] = useState('');
     const [dTableName, setDTableName] = useState('');
+    const [dPhysicalId, setDPhysicalId] = useState('');
     const [dRegisterGlobal, setDRegisterGlobal] = useState(true);
-    const [dColumns, setDColumns] = useState<{ name: string, type: DataType, required: boolean, isPk: boolean }[]>([]);
+    const [dColumns, setDColumns] = useState<ModuleColumn[]>([]);
+    const [aiSuggestions, setAiSuggestions] = useState<{ name: string, type: DataType }[]>([]);
 
     const [isProvisioning, setIsProvisioning] = useState(false);
     const [isSuggesting, setIsSuggesting] = useState(false);
@@ -49,10 +99,24 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
 
     // Wizard Navigation
     const nextToCatalog = () => {
-        if (!name.trim()) {
+        const cleanName = name.trim();
+        if (!cleanName) {
             showToast("Module name is required", "error");
             return;
         }
+
+        if (cleanName.length < 3) {
+            showToast("Module name must be at least 3 characters", "error");
+            return;
+        }
+
+        // Validate uniqueness against ALL registered modules in the ecosystem
+        const isDuplicate = allRegisteredModules.includes(cleanName.toLowerCase());
+        if (isDuplicate) {
+            showToast(`A module named "${cleanName}" already exists in the system registry. Please choose a unique name.`, "error");
+            return;
+        }
+
         setStep('catalog');
     };
 
@@ -74,18 +138,31 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                 { name: 'NAME', type: 'VARCHAR', required: false, isPk: false }
             ]);
         }
+        setAiSuggestions([]); // Clear AI suggestions when opening editor
+        setMatches([]); // Clear matches when opening editor
         setStep('editor');
     };
 
-    const saveObject = () => {
+    const saveObject = (): boolean => {
         if (!dLogicalName || !dTableName || dColumns.length === 0) {
             showToast("Please fill in all object details", "error");
-            return;
+            return false;
         }
 
         if (!dColumns.some(c => c.isPk)) {
             showToast("Primary key is mandatory", "error");
-            return;
+            return false;
+        }
+
+        // Validate uniqueness within current module
+        const isDuplicateObject = stagedObjects.some((o, idx) =>
+            idx !== editingIndex &&
+            (o.name.toUpperCase() === dTableName.toUpperCase() || o.logicalName.toLowerCase() === dLogicalName.toLowerCase())
+        );
+
+        if (isDuplicateObject) {
+            showToast(`An object with name "${dLogicalName}" or table "MSAI_${dTableName}" already exists in this module draft.`, "error");
+            return false;
         }
 
         const newObj = {
@@ -103,6 +180,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
             setStagedObjects([...stagedObjects, newObj]);
         }
         setStep('catalog');
+        return true;
     };
 
     const removeObject = (idx: number) => {
@@ -116,42 +194,83 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
         }
         setIsSuggesting(true);
         try {
-            // 1. Search for similar existing schemas (Fuzzy Overlap Match)
-            const searchWords = dLogicalName.toLowerCase()
+            // 1. Fetch live "Universe" from database instead of constants
+            const legacyUniverse = await apiService.fetchLegacyUniverse();
+
+            // 2. Search for similar existing schemas (Deep Weighted Match)
+            const cleanName = dLogicalName.toLowerCase()
                 .replace(/[^a-z0-9\s_]/g, '')
-                .split(/[\s_]+/)
+                .replace(/(.)\1{2,}/g, '$1');
+
+            const searchWords = cleanName.split(/[\s_]+/)
                 .filter(w => w.length > 2)
-                .map(w => w.replace(/s$/, '')); // Simple de-pluralize
+                .map(w => w.replace(/s+$/, ''));
 
-            const foundMatches = (Object.values(allSchemas || {}) as SchemaDefinition[]).filter(s => {
-                const targetText = (s.name + " " + s.table_name).toLowerCase().replace(/[^a-z0-9\s_]/g, '');
-                const targetWords = targetText.split(/[\s_]+/).map(w => w.replace(/s$/, ''));
+            const scoredMatches = (Object.values(legacyUniverse || {}) as SchemaDefinition[]).map(s => {
+                const targetNameText = (s.name + " " + (s.table_name || '')).toLowerCase().replace(/[^a-z0-9\s_]/g, '');
+                const targetNameWords = targetNameText.split(/[\s_]+/).map(w => w.replace(/s+$/, ''));
 
-                // Match if any significant word overlaps
-                return searchWords.some(sw => targetWords.some(tw => tw.includes(sw) || sw.includes(tw)));
-            });
-            setMatches(foundMatches);
+                const fieldText = (s.fields || []).map(f => f.column_name + " " + (f.label || "")).join(" ").toLowerCase();
+                const fieldWords = fieldText.split(/[\s_]+/).map(w => w.replace(/s+$/, ''));
 
-            // 2. Get AI suggestions
-            const suggestions = await suggestColumns(dLogicalName);
+                let score = 0;
+                let wordsMatchedCount = 0;
+                let hasNameMatch = false;
+                let hasIntentMatch = false;
 
-            // Smarter Merge: Keep existing columns, append new ones if they don't exist
-            setDColumns(prev => {
-                const next = [...prev];
-                suggestions.forEach(s => {
-                    const exists = next.find(col => col.name.toUpperCase() === s.name.toUpperCase());
-                    if (!exists) {
-                        next.push({ name: s.name, type: s.type, required: false, isPk: false });
+                searchWords.forEach(sw => {
+                    let wordHasMatch = false;
+                    // 1. Identity Match (Name/Table - Weight 20)
+                    if (targetNameWords.some(tw => tw === sw || (tw.length > 3 && (tw.includes(sw) || sw.includes(tw))))) {
+                        score += 20;
+                        wordHasMatch = true;
+                        hasNameMatch = true;
                     }
+                    // 2. Intent Match (Fields - Weight 10)
+                    if (fieldWords.some(fw => fw === sw || (fw.length > 4 && fw.includes(sw)))) {
+                        score += 10;
+                        wordHasMatch = true;
+                        hasIntentMatch = true;
+                    }
+                    if (wordHasMatch) wordsMatchedCount++;
                 });
-                return next;
-            });
 
-            if (foundMatches.length > 0) {
-                showToast(`AI suggested fields & found ${foundMatches.length} similar existing modules`);
+                const coverage = wordsMatchedCount / searchWords.length;
+                let finalScore = score * Math.pow(coverage, 2);
+
+                // INTENT GAP PENALTY: Match name but no fields for a multi-word search
+                if (searchWords.length > 1 && hasNameMatch && !hasIntentMatch) {
+                    finalScore = finalScore * 0.05;
+                }
+
+                if (searchWords.length > 1 && !hasNameMatch) {
+                    finalScore = finalScore * 0.05;
+                }
+
+                return { schema: s, score: finalScore };
+            })
+                .filter(m => m.score > 5)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 3);
+
+            setMatches(scoredMatches.map(m => m.schema));
+
+            // 3. AI Suggestions (Gemini)
+            const suggestions = await suggestColumns(dLogicalName);
+            setAiSuggestions(suggestions);
+
+            if (scoredMatches.length > 0) {
+                showToast(`AI Menu ready & found ${scoredMatches.length} existing modules`);
             } else {
-                showToast(`AI added ${suggestions.length} relevant attributes`);
+                showToast(`AI analyzed ${suggestions.length} industry-standard attributes`);
             }
+
+            // The original code had a duplicate toast message here, removed it.
+            // if (foundMatches.length > 0) {
+            //     showToast(`AI suggested fields & found ${foundMatches.length} similar existing modules`);
+            // } else {
+            //     showToast(`AI added ${suggestions.length} relevant attributes`);
+            // }
         } catch (err) {
             showToast("AI suggestion failed", "error");
         } finally {
@@ -202,6 +321,15 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
 
         setIsProvisioning(false);
         onCreate(name, icon, finalObjects);
+
+        // Final Clean up after successful provisioning and launch
+        localStorage.removeItem('mapsync_draft_name');
+        localStorage.removeItem('mapsync_draft_icon');
+        localStorage.removeItem('mapsync_draft_objects');
+        setName('');
+        setIcon('📦');
+        setStagedObjects([]);
+        setShowRecovery(false);
     };
 
     return (
@@ -251,36 +379,60 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                             </div>
                             <p className="text-slate-400 text-[7px] font-bold uppercase tracking-[0.2em] pl-1">Architectural Design</p>
                         </div>
-                        <button
-                            onClick={onBack}
-                            className="px-3 py-1.5 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-100 rounded-lg transition-all group"
-                        >
-                            <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-rose-600">Close ✕</span>
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={clearDraft}
+                                className="px-3 py-1.5 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-100 rounded-lg transition-all group"
+                                title="Wipe Draft"
+                            >
+                                <span className="text-[8px] font-bold uppercase tracking-widest text-slate-300 group-hover:text-rose-600">Reset ↺</span>
+                            </button>
+                            <button
+                                onClick={onBack}
+                                className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-all group"
+                            >
+                                <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-slate-900">Close ✕</span>
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="relative flex justify-between px-4">
-                        {/* Connector Line */}
-                        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-slate-100 -translate-y-1/2 -z-0 mx-8"></div>
+                    <div className="relative px-12">
+                        {/* Connector Line Background */}
+                        <div className="absolute top-4 left-[64px] right-[64px] h-0.5 bg-slate-100 -z-0"></div>
+
+                        {/* Progress Line */}
                         <div
-                            className="absolute top-1/2 left-0 h-0.5 bg-blue-600 -translate-y-1/2 transition-all duration-700 -z-0 mx-8"
-                            style={{ width: step === 'profile' ? '0%' : step === 'catalog' ? '45%' : '90%' }}
+                            className="absolute top-4 left-[64px] h-0.5 bg-blue-600 transition-all duration-700 ease-in-out -z-0"
+                            style={{
+                                width: step === 'profile' ? '0%' : step === 'catalog' ? 'calc(50% - 64px)' : 'calc(100% - 128px)'
+                            }}
                         ></div>
 
-                        {[
-                            { id: 'profile', label: 'Identity', icon: '🆔' },
-                            { id: 'catalog', label: 'Catalog', icon: '📂' },
-                            { id: 'editor', label: 'Architecture', icon: '📐' }
-                        ].map((s, idx) => (
-                            <div key={s.id} className="relative z-10 flex flex-col items-center gap-2">
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center step-transition shadow-sm ${step === s.id ? 'bg-blue-600 text-white scale-105 shadow-md shadow-blue-500/10' :
-                                    (idx < ['profile', 'catalog', 'editor'].indexOf(step) ? 'bg-blue-100 text-blue-600' : 'bg-white text-slate-300 border border-slate-100')
-                                    }`}>
-                                    <span className="text-xs">{s.icon}</span>
-                                </div>
-                                <span className={`text-[7px] font-bold uppercase tracking-widest ${step === s.id ? 'text-blue-600' : 'text-slate-300'}`}>{s.label}</span>
-                            </div>
-                        ))}
+                        <div className="relative flex justify-between z-10">
+                            {[
+                                { id: 'profile', label: 'Identity', icon: '🆔' },
+                                { id: 'catalog', label: 'Blueprint', icon: '�' },
+                                { id: 'editor', label: 'Architecture', icon: '�' }
+                            ].map((s, idx) => {
+                                const stepOrder = ['profile', 'catalog', 'editor'];
+                                const stepIndex = stepOrder.indexOf(step);
+                                const isCompleted = idx < stepIndex;
+                                const isActive = step === s.id;
+
+                                return (
+                                    <div key={s.id} className="flex flex-col items-center gap-2 min-w-[64px]">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500 shadow-sm ${isActive ? 'bg-blue-600 text-white scale-110 shadow-lg shadow-blue-500/20' :
+                                            isCompleted ? 'bg-blue-100 text-blue-600' : 'bg-white text-slate-300 border border-slate-100'
+                                            }`}>
+                                            <span className="text-xs">{s.icon}</span>
+                                        </div>
+                                        <span className={`text-[7px] font-black uppercase tracking-widest transition-colors duration-500 ${isActive ? 'text-blue-600' : 'text-slate-300'}`}>
+                                            {s.label}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
@@ -288,44 +440,99 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                 <div className="flex-1 p-8 overflow-y-auto blueprint-grid">
                     {step === 'profile' && (
                         <div className="space-y-8 animate-in fade-in slide-in-from-right-2 duration-300">
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-2 px-1">
-                                    <div className="w-0.5 h-2 bg-blue-600 rounded-full"></div>
-                                    <label className="text-[9px] font-bold text-slate-900 uppercase tracking-widest">Core Module Identity</label>
+                            {showRecovery ? (
+                                <div className="space-y-6">
+                                    <div className="bg-slate-50 border-2 border-slate-200 rounded-[2.5rem] p-10 flex flex-col items-center text-center gap-6 group hover:border-blue-500 transition-all shadow-xl shadow-slate-100/50">
+                                        <div className="w-24 h-24 bg-white rounded-[2rem] flex items-center justify-center text-5xl shadow-lg border border-slate-100 group-hover:scale-110 transition-transform">
+                                            {icon}
+                                        </div>
+                                        <div className="space-y-2">
+                                            <h3 className="text-3xl font-black text-slate-900 tracking-tight">{name || 'Unnamed Module'}</h3>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white px-4 py-1.5 rounded-full border border-slate-100 shadow-smInline-block">
+                                                {stagedObjects.length} ENTITIES ARCHITECTED
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col gap-3 w-full max-w-xs mt-4">
+                                            <button
+                                                onClick={() => {
+                                                    setShowRecovery(false);
+                                                    setStep('catalog');
+                                                }}
+                                                className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-[12px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all flex items-center justify-center gap-3"
+                                            >
+                                                Resume Blueprint <span>→</span>
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    // Allow updating identity by just hiding the recovery card
+                                                    setShowRecovery(false);
+                                                }}
+                                                className="w-full py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:border-slate-400 transition-all"
+                                            >
+                                                Edit Identity ✎
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    if (confirm("Discard current draft and start fresh?")) {
+                                                        setName('');
+                                                        setIcon('📦');
+                                                        setStagedObjects([]);
+                                                        localStorage.removeItem('mapsync_draft_name');
+                                                        localStorage.removeItem('mapsync_draft_icon');
+                                                        localStorage.removeItem('mapsync_draft_objects');
+                                                        setShowRecovery(false);
+                                                    }
+                                                }}
+                                                className="w-full py-2 text-slate-300 hover:text-rose-500 font-black text-[8px] uppercase tracking-widest transition-colors"
+                                            >
+                                                Purge & Start New Architect ↺
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p className="text-center text-[8px] font-bold text-slate-300 uppercase tracking-[0.3em]">Session Recovered from Local Memory</p>
                                 </div>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    placeholder="Enter module name..."
-                                    className="w-full text-2xl font-bold p-6 bg-white border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-100 shadow-sm transition-all placeholder:text-slate-200"
-                                    autoFocus
-                                />
-                            </div>
+                            ) : (
+                                <>
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2 px-1">
+                                            <div className="w-0.5 h-2 bg-blue-600 rounded-full"></div>
+                                            <label className="text-[9px] font-bold text-slate-900 uppercase tracking-widest">Core Module Identity</label>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={name}
+                                            onChange={(e) => setName(e.target.value)}
+                                            placeholder="Enter module name..."
+                                            className="w-full text-2xl font-bold p-6 bg-white border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-100 shadow-sm transition-all placeholder:text-slate-200"
+                                            autoFocus
+                                        />
+                                    </div>
 
-                            <div className="space-y-4">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1 block">Visual Signature</label>
-                                <div className="grid grid-cols-5 md:grid-cols-10 gap-2 bg-slate-50/30 p-3 rounded-2xl border border-slate-100">
-                                    {icons.map(i => (
+                                    <div className="space-y-4">
+                                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1 block">Visual Signature</label>
+                                        <div className="grid grid-cols-5 md:grid-cols-10 gap-2 bg-slate-50/30 p-3 rounded-2xl border border-slate-100">
+                                            {icons.map(i => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => setIcon(i)}
+                                                    className={`aspect-square flex items-center justify-center rounded-lg text-xl transition-all ${icon === i ? 'bg-slate-900 text-white shadow-lg scale-105' : 'bg-white hover:bg-slate-50 text-slate-400 border border-slate-200'}`}
+                                                >
+                                                    {i}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-6 flex justify-end">
                                         <button
-                                            key={i}
-                                            onClick={() => setIcon(i)}
-                                            className={`aspect-square flex items-center justify-center rounded-lg text-xl transition-all ${icon === i ? 'bg-slate-900 text-white shadow-lg scale-105' : 'bg-white hover:bg-slate-50 text-slate-400 border border-slate-200'}`}
+                                            onClick={nextToCatalog}
+                                            className="px-8 py-4 bg-slate-900 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-blue-600 shadow-lg transition-all flex items-center gap-3 group"
                                         >
-                                            {i}
+                                            Model Architecture <span className="group-hover:translate-x-1 transition-transform">→</span>
                                         </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="pt-6 flex justify-end">
-                                <button
-                                    onClick={nextToCatalog}
-                                    className="px-8 py-4 bg-slate-900 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-blue-600 shadow-lg transition-all flex items-center gap-3 group"
-                                >
-                                    Map Objects <span className="group-hover:translate-x-1 transition-transform">→</span>
-                                </button>
-                            </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
 
@@ -336,20 +543,32 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                     <h3 className="text-base font-bold text-slate-900 uppercase tracking-tight">Module Workbench</h3>
                                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Managing {stagedObjects.length} entities in {name}</p>
                                 </div>
-                                <button
-                                    onClick={() => openEditor()}
-                                    className="px-5 py-2.5 bg-slate-900 text-white rounded-lg text-[8px] font-bold uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md flex items-center gap-2 group"
-                                >
-                                    <span className="text-sm group-hover:scale-110 transition-transform">+</span> Create New Entity
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => openEditor()}
+                                        className="px-5 py-2.5 bg-slate-900 text-white rounded-lg text-[8px] font-bold uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md flex items-center gap-2 group"
+                                    >
+                                        <span className="text-sm group-hover:scale-110 transition-transform">+</span> Add Data Entity
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex flex-col gap-0.5">
+                                    <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                                        Module Blueprint
+                                    </h3>
+                                    <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest">{stagedObjects.length} Entities Orchestrated</p>
+                                </div>
                             </div>
 
                             {stagedObjects.length === 0 ? (
-                                <div className="py-12 text-center space-y-4 glass-card rounded-2xl border-2 border-dashed border-slate-100">
-                                    <div className="text-4xl">🏗️</div>
+                                <div className="py-12 text-center space-y-4 glass-card rounded-2xl border-2 border-dashed border-slate-100/50 bg-slate-50/30">
+                                    <div className="text-4xl opacity-50">🏗️</div>
                                     <div className="space-y-1">
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">No objects configured</p>
-                                        <p className="text-[8px] font-medium text-slate-300 uppercase tracking-tighter">Define entities to process</p>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Architectural Canvas Empty</p>
+                                        <p className="text-[8px] font-bold text-slate-300 uppercase tracking-tight">Begin by adding your first data entity</p>
                                     </div>
                                 </div>
                             ) : (
@@ -366,9 +585,12 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                         className="w-8 h-8 bg-white hover:bg-slate-900 hover:text-white border border-slate-100 rounded-lg flex items-center justify-center transition-all text-xs"
                                                     >✎</button>
                                                     <button
-                                                        onClick={() => removeObject(i)}
-                                                        className="w-8 h-8 bg-white hover:bg-rose-600 hover:text-white border border-slate-100 rounded-lg flex items-center justify-center transition-all text-xs text-slate-200"
-                                                    >✕</button>
+                                                        onClick={() => {
+                                                            if (confirm(`Remove ${obj.logicalName}?`)) removeObject(i);
+                                                        }}
+                                                        className="w-8 h-8 bg-white hover:bg-rose-500 hover:text-white border border-slate-100 rounded-lg flex items-center justify-center transition-all text-[10px] text-rose-500"
+                                                        title="Remove from Blueprint"
+                                                    >🗑️</button>
                                                 </div>
                                             </div>
 
@@ -387,15 +609,15 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
 
                             <div className="pt-6 flex items-center justify-between">
                                 <button
-                                    onClick={() => setStep('profile')}
-                                    className="text-[8px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-all flex items-center gap-1"
-                                >← Back</button>
+                                    onClick={() => setShowRecovery(false)}
+                                    className="text-[8px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-all flex items-center gap-2"
+                                >← Update Identity</button>
                                 <button
                                     onClick={handleLaunch}
                                     disabled={stagedObjects.length === 0 || isProvisioning}
                                     className="px-8 py-4 bg-blue-600 text-white rounded-xl font-bold text-[9px] uppercase tracking-widest shadow-md hover:bg-blue-700 disabled:opacity-30 transition-all flex items-center gap-3"
                                 >
-                                    {isProvisioning ? 'Splicing...' : 'Provision Module'}
+                                    {isProvisioning ? 'Splicing...' : 'Finalize & Provision Module'}
                                     <span className="animate-pulse">🚀</span>
                                 </button>
                             </div>
@@ -409,7 +631,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                     <div className="flex items-center justify-between px-1">
                                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                             <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
-                                            Object Name
+                                            Object Essence (Logical Name)
                                         </label>
                                         <div className="flex items-center gap-2 opacity-40 hover:opacity-100 transition-opacity">
                                             <span className="text-[7px] font-bold text-slate-300 uppercase tracking-widest">System ID:</span>
@@ -434,10 +656,10 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                             <div className="space-y-4">
                                 {matches.length > 0 && (
                                     <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 space-y-4 animate-in fade-in zoom-in-95 duration-300">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[10px]">🏢</span>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex flex-col gap-0.5">
                                                 <h5 className="text-[8px] font-bold text-blue-600 uppercase tracking-[0.2em]">Legacy Reference Found</h5>
+                                                <p className="text-[6px] text-slate-400 font-bold uppercase tracking-tight">Attributes are synced globally to your current table blueprint</p>
                                             </div>
                                             <button
                                                 onClick={() => setMatches([])}
@@ -450,62 +672,90 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                 <div key={m.id} className="bg-white rounded-lg border border-blue-50 p-3 space-y-3 shadow-sm">
                                                     <div className="flex items-center justify-between border-b border-slate-50 pb-2">
                                                         <div className="flex flex-col">
-                                                            <span className="text-[9px] font-bold text-slate-700">{m.icon} {m.name}</span>
-                                                            <span className="text-[7px] text-slate-400 font-medium uppercase tracking-tighter">Existing Platform Blueprint</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[9px] font-bold text-slate-700">{m.icon} {m.name}</span>
+                                                                {m.moduleName && (
+                                                                    <span className="text-[7px] font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded uppercase tracking-tight">
+                                                                        Part of {m.moduleName}
+                                                                    </span>
+                                                                )}
+                                                                <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[5px] font-black uppercase tracking-tighter border border-blue-100 flex items-center gap-1">
+                                                                    <span className="w-1 h-1 rounded-full bg-blue-400"></span>
+                                                                    High Confidence Match
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-[7px] text-slate-400 font-medium uppercase tracking-tighter italic">Found via Architectural Pattern Analysis</span>
                                                         </div>
-                                                        <div className="flex gap-2">
-                                                            <button
-                                                                onClick={() => {
-                                                                    setDColumns(prev => {
-                                                                        const next = [...prev];
-                                                                        m.fields.forEach(f => {
-                                                                            if (!next.find(c => c.name.toUpperCase() === f.column_name.toUpperCase())) {
-                                                                                next.push({ name: f.column_name.toUpperCase(), type: f.type, required: f.required, isPk: false });
-                                                                            }
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setDColumns(prev => {
+                                                                            const next = [...prev];
+                                                                            m.fields.forEach(f => {
+                                                                                if (!next.find(c => c.name.toUpperCase() === f.column_name.toUpperCase())) {
+                                                                                    next.push({ name: f.column_name.toUpperCase(), type: f.type, required: f.required, isPk: false });
+                                                                                }
+                                                                            });
+                                                                            return next;
                                                                         });
-                                                                        return next;
-                                                                    });
-                                                                    showToast(`Selected all fields from ${m.name}`);
-                                                                }}
-                                                                className="text-[7px] font-bold text-blue-600 uppercase hover:bg-blue-50 px-2 py-1 rounded transition-colors"
-                                                            >Select All</button>
+                                                                        showToast(`Selected all fields from ${m.name}`);
+                                                                    }}
+                                                                    className="text-[7px] font-bold text-blue-600 uppercase hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                                                                >Select All</button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const mNames = m.fields.map(f => f.column_name.toUpperCase());
+                                                                        setDColumns(dColumns.filter(c => !mNames.includes(c.name.toUpperCase())));
+                                                                        showToast(`Removed fields from ${m.name}`);
+                                                                    }}
+                                                                    className="text-[7px] font-bold text-rose-500 uppercase hover:bg-rose-50 px-2 py-1 rounded transition-colors"
+                                                                >Remove All</button>
+                                                            </div>
                                                             <button
-                                                                onClick={() => {
-                                                                    const mNames = m.fields.map(f => f.column_name.toUpperCase());
-                                                                    setDColumns(dColumns.filter(c => !mNames.includes(c.name.toUpperCase())));
-                                                                    showToast(`Removed fields from ${m.name}`);
-                                                                }}
-                                                                className="text-[7px] font-bold text-rose-500 uppercase hover:bg-rose-50 px-2 py-1 rounded transition-colors"
-                                                            >Remove All</button>
+                                                                onClick={() => setMatches(matches.filter(match => match.id !== m.id))}
+                                                                className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-300 hover:text-rose-500 transition-all text-[10px]"
+                                                                title="Dismiss this suggestion"
+                                                            >✕</button>
                                                         </div>
                                                     </div>
                                                     <div className="flex flex-wrap gap-1.5">
-                                                        {m.fields && m.fields.length > 0 ? m.fields.map(f => {
-                                                            const isAlreadyIn = dColumns.some(c => c.name.toUpperCase() === f.column_name.toUpperCase());
-                                                            return (
-                                                                <button
-                                                                    key={f.id}
-                                                                    onClick={() => {
-                                                                        if (isAlreadyIn) {
-                                                                            setDColumns(dColumns.filter(c => c.name.toUpperCase() !== f.column_name.toUpperCase()));
-                                                                        } else {
-                                                                            setDColumns([...dColumns, { name: f.column_name.toUpperCase(), type: f.type, required: f.required, isPk: false }]);
-                                                                        }
-                                                                    }}
-                                                                    className={`px-2.5 py-1.5 rounded-lg text-[8px] font-bold transition-all border flex items-center gap-2 ${isAlreadyIn
-                                                                            ? 'bg-blue-600 border-blue-500 text-white shadow-sm ring-1 ring-blue-400'
-                                                                            : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/30'
-                                                                        }`}
-                                                                >
-                                                                    <span className={`w-3 h-3 flex items-center justify-center rounded-full text-[7px] ${isAlreadyIn ? 'bg-white/20' : 'bg-slate-100'}`}>
-                                                                        {isAlreadyIn ? '✓' : '+'}
-                                                                    </span>
-                                                                    {f.column_name}
-                                                                </button>
-                                                            );
-                                                        }) : (
-                                                            <div className="py-2 px-4 bg-slate-50 rounded-lg w-full text-center border border-dashed border-slate-200">
-                                                                <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest">No attributes defined in this blueprint</span>
+                                                        {m.fields && m.fields.length > 0 ? (
+                                                            m.fields.map(f => {
+                                                                const isAlreadyIn = dColumns.some(c => c.name.toUpperCase() === f.column_name.toUpperCase());
+                                                                return (
+                                                                    <div
+                                                                        key={f.id}
+                                                                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-bold transition-all border ${isAlreadyIn
+                                                                            ? 'bg-blue-50 border-blue-200 text-blue-700 ring-1 ring-blue-100 shadow-sm'
+                                                                            : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400 hover:bg-blue-50/30'
+                                                                            }`}
+                                                                    >
+                                                                        {f.column_name}
+                                                                        {!isAlreadyIn ? (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setDColumns([...dColumns, { name: f.column_name.toUpperCase(), type: f.type as any, required: f.required, isPk: false }]);
+                                                                                }}
+                                                                                className="w-4 h-4 rounded-full bg-slate-100 hover:bg-blue-600 hover:text-white flex items-center justify-center transition-colors pb-0.5"
+                                                                            >+</button>
+                                                                        ) : (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setDColumns(dColumns.filter(c => c.name.toUpperCase() !== f.column_name.toUpperCase()));
+                                                                                }}
+                                                                                className="flex items-center gap-1.5 px-1.5 py-0.5 bg-blue-50 hover:bg-rose-50 border border-blue-100 hover:border-rose-200 rounded transition-all group/unsync"
+                                                                            >
+                                                                                <span className="text-blue-600 font-black text-[7px] group-hover/unsync:hidden">✓ SYNCED</span>
+                                                                                <span className="hidden group-hover/unsync:inline text-rose-500 font-black text-[7px]">UNSYNC 🗑️</span>
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })
+                                                        ) : (
+                                                            <div className="w-full py-3 bg-slate-50 rounded-lg text-center border border-dashed border-slate-200">
+                                                                <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest">No predefined attributes</span>
                                                             </div>
                                                         )}
                                                     </div>
@@ -515,9 +765,82 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                     </div>
                                 )}
 
+                                {aiSuggestions.length > 0 && (
+                                    <div className="mb-6 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 animate-in slide-in-from-top-2 duration-300">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="flex flex-col gap-0.5">
+                                                <h5 className="text-[8px] font-bold text-indigo-600 uppercase tracking-[0.2em]">✨ AI Intelligence Menu</h5>
+                                                <p className="text-[6px] text-slate-400 font-bold uppercase tracking-tight">AI identified {aiSuggestions.length} domain-specific attributes</p>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        const next = [...dColumns];
+                                                        aiSuggestions.forEach(s => {
+                                                            if (!next.find(c => c.name.toUpperCase() === s.name.toUpperCase())) {
+                                                                next.push({ name: s.name.toUpperCase(), type: s.type, required: false, isPk: false });
+                                                            }
+                                                        });
+                                                        setDColumns(next);
+                                                        setAiSuggestions([]);
+                                                    }}
+                                                    className="text-[7px] font-bold text-indigo-600 uppercase hover:bg-indigo-100 px-2 py-1 rounded transition-colors"
+                                                >Add All</button>
+                                                <button
+                                                    onClick={() => setAiSuggestions([])}
+                                                    className="text-[8px] font-bold text-slate-300 hover:text-slate-900 uppercase"
+                                                >Dismiss</button>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {aiSuggestions.map((s, idx) => {
+                                                const isAlreadyIn = dColumns.some(c => c.name.toUpperCase() === s.name.toUpperCase());
+                                                return (
+                                                    <div
+                                                        key={idx}
+                                                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-bold transition-all border ${isAlreadyIn
+                                                            ? 'bg-indigo-100 border-indigo-200 text-indigo-700 ring-1 ring-indigo-100 shadow-sm'
+                                                            : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-400 hover:bg-indigo-50/30'
+                                                            }`}
+                                                    >
+                                                        {s.name}
+                                                        {!isAlreadyIn ? (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setDColumns([...dColumns, { name: s.name.toUpperCase(), type: s.type, required: false, isPk: false }]);
+                                                                }}
+                                                                className="w-4 h-4 rounded-full bg-slate-100 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-colors pb-0.5"
+                                                            >+</button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setDColumns(dColumns.filter(c => c.name.toUpperCase() !== s.name.toUpperCase()));
+                                                                }}
+                                                                className="flex items-center gap-0.5 text-indigo-600 hover:text-rose-500 transition-colors group/ai"
+                                                            >
+                                                                <span className="group-hover/ai:hidden">✓</span>
+                                                                <span className="hidden group-hover/ai:inline text-[8px]">✕</span>
+                                                                <span className="text-[5px] uppercase font-black tracking-tighter opacity-50">Synced</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="flex items-center justify-between px-1">
                                     <h4 className="text-[9px] font-bold text-slate-900 uppercase tracking-widest">Attributes</h4>
                                     <div className="flex gap-1.5">
+                                        <button
+                                            onClick={() => {
+                                                if (confirm("Wipe all active columns?")) setDColumns([]);
+                                            }}
+                                            className="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-md text-[7px] font-bold uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                                        >
+                                            🗑️ Trash All
+                                        </button>
                                         <button
                                             onClick={handleAIsuggest}
                                             disabled={isSuggesting || !dLogicalName}
@@ -584,25 +907,40 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                             </div>
 
                             <div className="pt-6 flex items-center justify-between border-t border-slate-100">
-                                <button
-                                    onClick={() => setStep('catalog')}
-                                    className="text-[8px] font-bold uppercase tracking-widest text-slate-300 hover:text-slate-900 transition-all px-2"
-                                >Cancel</button>
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={() => stagedObjects.length > 0 ? setStep('catalog') : setStep('profile')}
+                                        className="text-[8px] font-bold uppercase tracking-widest text-slate-300 hover:text-slate-900 transition-all px-2"
+                                    >← {stagedObjects.length > 0 ? 'Back to Blueprint' : 'Back to Identity'}</button>
+                                    {editingIndex !== null && (
+                                        <button
+                                            onClick={() => {
+                                                if (confirm("Permanently delete this object from the module?")) {
+                                                    removeObject(editingIndex);
+                                                    setStep('catalog');
+                                                }
+                                            }}
+                                            className="text-[8px] font-bold uppercase tracking-widest text-rose-400 hover:text-rose-600 transition-all border-l border-slate-100 pl-4"
+                                        >Delete Object</button>
+                                    )}
+                                </div>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => {
-                                            saveObject();
-                                            setTimeout(() => openEditor(), 100);
+                                            const saved = saveObject();
+                                            if (saved) {
+                                                setTimeout(() => openEditor(), 50);
+                                            }
                                         }}
                                         className="px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-[8px] font-bold uppercase tracking-widest hover:border-slate-900 hover:text-slate-900 transition-all shadow-sm"
                                     >
                                         Save & Add Another
                                     </button>
                                     <button
-                                        onClick={saveObject}
-                                        className="px-6 py-3 bg-slate-900 text-white rounded-lg text-[8px] font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-md flex items-center gap-2 group"
+                                        onClick={() => saveObject()}
+                                        className="px-8 py-3 bg-slate-900 text-white rounded-lg text-[8px] font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-md flex items-center gap-2 group"
                                     >
-                                        💾 Save Blueprint <span className="group-hover:scale-110 transition-transform">✓</span>
+                                        💾 Save to Blueprint <span className="group-hover:scale-110 transition-transform">✓</span>
                                     </button>
                                 </div>
                             </div>

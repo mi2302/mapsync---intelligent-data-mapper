@@ -86,9 +86,18 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
     };
 
     const handleCreateSource = async () => {
-        if (!newSourceName) return;
+        const trimmedName = newSourceName.trim();
+        if (!trimmedName) return;
+
+        // Check for duplicate names within the project
+        const isDuplicate = sources.some(s => s.SOURCE_NAME.trim().toLowerCase() === trimmedName.toLowerCase());
+        if (isDuplicate) {
+            alert(`A source with the name "${trimmedName}" already exists in this project.`);
+            return;
+        }
+
         const moduleIds = Array.from(newSourceSelectedModuleIds) as number[];
-        const result = await apiService.createProjectSource(project.PROJECT_ID, newSourceName, newSourceDesc, moduleIds);
+        const result = await apiService.createProjectSource(project.PROJECT_ID, trimmedName, newSourceDesc, moduleIds);
         if (result.success) {
             setShowCreateSource(false);
             setCreateSourceStep(1);
@@ -120,13 +129,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
         if (details) {
             setSelectedModuleIds(new Set(details.selectedModuleIds));
         } else {
-            const projectIds = new Set<number>();
-            projectModules.forEach(group => {
-                group.objects.forEach((obj: any) => {
-                    if (obj.moduleId) projectIds.add(obj.moduleId);
-                });
-            });
-            setSelectedModuleIds(projectIds);
+            setSelectedModuleIds(new Set());
         }
         setEditingSource(source);
         setIsEditingModules(true);
@@ -464,11 +467,6 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                             {createSourceStep === 1 ? (
                                 <button
                                     onClick={() => {
-                                        if (newSourceSelectedModuleIds.size === 0) {
-                                            const allIds = new Set<number>();
-                                            projectModules.forEach(g => g.objects.forEach((o: any) => o.moduleId && allIds.add(o.moduleId)));
-                                            setNewSourceSelectedModuleIds(allIds);
-                                        }
                                         setCreateSourceStep(2);
                                     }}
                                     disabled={!newSourceName}

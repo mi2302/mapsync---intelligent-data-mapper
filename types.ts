@@ -82,6 +82,7 @@ export interface SchemaDefinition {
   table_name: string;
   fields: TargetField[];
   dependencies?: SchemaDependency[]; // Parent relationships
+  moduleName?: string;
 }
 
 export interface ModuleObject {

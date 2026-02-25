@@ -571,8 +571,17 @@ const App: React.FC = () => {
     };
 
     setDataGroups(prev => [...prev, newGroup]);
-    showToast(`Custom module "${name}" synthesized and added to dashboard.`, "success");
-    setView('dashboard');
+    showToast(`Custom module "${name}" synthesized and added to catalog.`, "success");
+
+    // Return to context instead of forcing registry flow
+    if (currentSource) {
+      setView('source_dashboard');
+    } else if (currentProject) {
+      setView('project_detail');
+    } else {
+      setView('projects');
+    }
+
     refreshAllConfigs();
   };
 
@@ -940,6 +949,7 @@ const App: React.FC = () => {
           }}
           onCreate={handleCreateModule}
           allSchemas={dynamicSchemas}
+          existingModules={dataGroups}
         />
       ) : (
         <div className="grid grid-cols-12 gap-8 items-start animate-in fade-in duration-500">

@@ -61,9 +61,18 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onMan
     };
 
     const handleCreate = async () => {
-        if (!newProjectName) return;
+        const trimmedName = newProjectName.trim();
+        if (!trimmedName) return;
+
+        // Check for duplicate names (case-insensitive)
+        const isDuplicate = projects.some(p => p.PROJECT_NAME.trim().toLowerCase() === trimmedName.toLowerCase());
+        if (isDuplicate) {
+            alert(`A project with the name "${trimmedName}" already exists. Please choose a unique name.`);
+            return;
+        }
+
         const moduleIds = Array.from(selectedModuleIds) as number[];
-        const result = await apiService.createProject(newProjectName, newProjectDesc, moduleIds);
+        const result = await apiService.createProject(trimmedName, newProjectDesc, moduleIds);
         if (result.success) {
             setShowCreate(false);
             setCreateStep(1);

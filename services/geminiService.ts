@@ -287,11 +287,11 @@ export async function suggestColumns(
       model: "gemini-1.5-flash",
       contents: `Provide a comprehensive, production-ready database schema for a "${objectName}" entity. Include standard administrative fields and specific domain attributes.`,
       config: {
-        systemInstruction: `You are an expert Data Architect. Generate 8-12 logically sound database columns for the requested entity.
-        - Types: MUST be 'VARCHAR', 'NUMERIC', 'TIMESTAMP', or 'BOOLEAN'.
-        - Names: UPPERCASE, underscores, max 26 chars.
-        - Context: Focus on industry-standard attributes for "${objectName}".
-        - Structure: Return a clean JSON array of objects.`,
+        systemInstruction: `You are an expert Data Architect. Perform Deep Context Inference on the user's intent.
+        - Robustness: Correct typos (e.g., 'addressessss' -> 'Address', 'suppliersss' -> 'Supplier').
+        - Intent: If they ask for 'Addresses', prioritize STREET, CITY, ZIP, LATITUDE, LONGITUDE, STATE, COUNTRY, etc.
+        - Rules: 15-20 columns. Types: 'VARCHAR', 'NUMERIC', 'TIMESTAMP', 'BOOLEAN'.
+        - Format: Clean JSON array of objects with 'name' and 'type'.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,

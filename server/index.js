@@ -280,7 +280,15 @@ app.post('/api/create-dynamic-table', async (req, res) => {
         }).join(', ');
 
         const pkCols = columns.filter(c => c.isPk).map(c => `"${c.name.toUpperCase()}"`);
-        const pkConstraint = pkCols.length > 0 ? `, CONSTRAINT PK_${safeTableName.substring(0, 20)} PRIMARY KEY (${pkCols.join(', ')})` : '';
+
+        // Generate a more unique constraint name to avoid ORA-02264
+        // Oracle limits: 30 chars for legacy, 128 for modern. We'll target 30 for safety.
+        // Format: PK_[truncated_name]_[hash]
+        const tableHash = Buffer.from(safeTableName).toString('hex').substring(0, 4).toUpperCase();
+        const baseName = safeTableName.replace('MSAI_', '').substring(0, 18);
+        const pkConstraintName = `PK_${baseName}_${tableHash}`;
+
+        const pkConstraint = pkCols.length > 0 ? `, CONSTRAINT ${pkConstraintName} PRIMARY KEY (${pkCols.join(', ')})` : '';
 
         const sql = `CREATE TABLE ${safeTableName} (${columnDefs}${pkConstraint})`;
         console.log('🚀 Creating Physical Table:', sql);
@@ -307,6 +315,87 @@ function nameToId(name) {
     // Reverted the merging of suppliers and vendor_relations
     return gid;
 }
+
+// Fetch all registered modules with their real database columns for searching
+app.get('/api/legacy-universe', async (req, res) => {
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
+
+        // 1. Fetch modules
+        const modulesResult = await connection.execute(
+            `SELECT MODULE_ID, MODULE_NAME, OBJECT_NAME, TARGET_TABLE_NAME, ICON 
+             FROM MSAI_MODULES`,
+            [],
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        if (modulesResult.rows.length === 0) return res.json({});
+
+        // 2. Fetch all columns for all registered tables in one go for efficiency
+        const tableNames = modulesResult.rows.map(m => (m.TARGET_TABLE_NAME || '').toUpperCase());
+        const resultSchema = {};
+
+        // Batch fetching columns if there are many tables
+        const colBatchSize = 30;
+        for (let i = 0; i < tableNames.length; i += colBatchSize) {
+            const batch = tableNames.slice(i, i + colBatchSize);
+            const placeholders = batch.map((_, idx) => `:t${idx}`).join(',');
+            const bindParams = {};
+            batch.forEach((tn, idx) => bindParams[`t${idx}`] = tn);
+
+            const colsResult = await connection.execute(
+                `SELECT table_name, column_name, data_type, nullable
+                 FROM all_tab_columns
+                 WHERE table_name IN (${placeholders})
+                 ORDER BY table_name, column_id`,
+                bindParams,
+                { outFormat: oracledb.OUT_FORMAT_OBJECT }
+            );
+
+            colsResult.rows.forEach(col => {
+                const tn = col.TABLE_NAME;
+                if (!resultSchema[tn]) resultSchema[tn] = [];
+
+                let type = 'VARCHAR';
+                const oraType = col.DATA_TYPE ? col.DATA_TYPE.toUpperCase() : '';
+                if (oraType.includes('NUMBER')) type = 'NUMERIC';
+                else if (oraType.includes('DATE') || oraType.includes('TIMESTAMP')) type = 'TIMESTAMP';
+                else if (oraType.includes('BOOL')) type = 'BOOLEAN';
+
+                resultSchema[tn].push({
+                    id: col.COLUMN_NAME,
+                    column_name: col.COLUMN_NAME,
+                    label: col.COLUMN_NAME.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase()),
+                    type: type,
+                    required: col.NULLABLE === 'N'
+                });
+            });
+        }
+
+        // 3. Combine into SchemaDefinition objects
+        const universe = {};
+        modulesResult.rows.forEach(m => {
+            const tn = (m.TARGET_TABLE_NAME || '').toUpperCase();
+            universe[m.OBJECT_NAME] = {
+                id: m.OBJECT_NAME,
+                name: m.OBJECT_NAME.replace(/_/g, ' '),
+                icon: m.ICON || '📦',
+                table_name: m.TARGET_TABLE_NAME,
+                moduleName: m.MODULE_NAME,
+                fields: resultSchema[tn] || []
+            };
+        });
+
+        res.json(universe);
+    } catch (err) {
+        console.error('Fetch Legacy Universe Error:', err);
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
 
 app.get('/api/modules', async (req, res) => {
     let connection;

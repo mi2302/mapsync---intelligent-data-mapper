@@ -209,6 +209,17 @@ export const apiService = {
     }
   },
 
+  fetchLegacyUniverse: async (): Promise<Record<string, SchemaDefinition>> => {
+    try {
+      const response = await fetch(`${API_URL}/legacy-universe`);
+      if (!response.ok) return {};
+      return await response.json();
+    } catch (error) {
+      console.error('Fetch Legacy Universe Failed:', error);
+      return {};
+    }
+  },
+
   // --- PROJECT API ---
   fetchProjects: async (): Promise<any[]> => {
     try {
