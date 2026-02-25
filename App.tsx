@@ -170,7 +170,6 @@ const App: React.FC = () => {
     const newFileNames = sourceData.fileNames.filter(f => f !== fileName);
     if (newFileNames.length === 0) {
       setSourceData(null);
-      setAllMappings({}); // Clear all mappings if no source data
       return;
     }
 
@@ -201,19 +200,7 @@ const App: React.FC = () => {
       fileHeaders: newFileHeaders
     });
 
-    // Clean up Mappings: specific fix for the user issue
-    setAllMappings(prev => {
-      const updated: Record<string, FieldMapping[]> = {};
-      Object.keys(prev).forEach(schemaId => {
-        updated[schemaId] = prev[schemaId].map(mapping => {
-          if (mapping.sourceHeader && headersToRemove.includes(mapping.sourceHeader)) {
-            return { ...mapping, sourceHeader: undefined };
-          }
-          return mapping;
-        });
-      });
-      return updated;
-    });
+    // Mappings are preserved even if headers are missing (shows as mismatch in UI)
 
     showToast(`Removed source file: ${fileName}`, "success");
   };
@@ -871,7 +858,7 @@ const App: React.FC = () => {
 
     setPreviewLogs(newLogs);
     setShowPreview(true);
-    showToast("SQL Preview Ready", "success");
+    showToast("Validation Complete", "success");
   };
 
   if (loadingConfig) {
@@ -1226,7 +1213,7 @@ const App: React.FC = () => {
                           onClick={handlePreview}
                           className="px-4 py-1.5 bg-blue-500/10 text-blue-500 text-[9px] font-black rounded-full border border-blue-500/20 hover:bg-blue-500/20 transition-all mr-2"
                         >
-                          PREVIEW SQL
+                          VALIDATIONS
                         </button>
                         <button
                           onClick={async () => {
@@ -1680,21 +1667,11 @@ const App: React.FC = () => {
                       </div>
                     ) : (
                       <>
-                        <div className="mb-2">
-                          <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Generated Query Template</div>
-                          <pre className="text-[10px] font-mono text-slate-300 bg-slate-950 p-3 rounded border border-slate-800/50 whitespace-pre-wrap break-all">
-                            {log.query}
-                          </pre>
-                        </div>
-
-                        {log.sample && (
-                          <div>
-                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Sample Bind Data (Row 1)</div>
-                            <pre className="text-[9px] font-mono text-emerald-400/80 bg-slate-950 p-3 rounded border border-slate-800/50 overflow-x-auto">
-                              {JSON.stringify(log.sample, null, 2)}
-                            </pre>
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 mb-4 last:mb-0">
+                          <div className="flex items-center gap-2 text-emerald-400 text-[10px] font-black uppercase">
+                            <span>✅</span> Structural & Logical Validation Passed
                           </div>
-                        )}
+                        </div>
                       </>
                     )}
                   </div>

@@ -289,7 +289,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                           {onRemoveFile && (
                             <button
                               onClick={() => {
-                                if (confirm(`Remove file "${fileName}"? This will unmap linked fields.`)) {
+                                if (confirm(`Remove file "${fileName}"? Linked fields will remain mapped (you can upload a new version later).`)) {
                                   onRemoveFile(fileName);
                                 }
                               }}
