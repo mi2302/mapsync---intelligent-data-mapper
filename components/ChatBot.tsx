@@ -285,10 +285,10 @@ const ChatBot: React.FC<ChatBotProps> = ({ view, currentProject, currentSource, 
                                 <span className="text-white text-xs">🤖</span>
                             </div>
                             <div>
-                                <h3 className="text-white font-black text-[10px] uppercase tracking-widest leading-none">Sync Assistant</h3>
+                                <h3 className="text-white font-medium text-[10px] uppercase tracking-widest leading-none">Sync Assistant</h3>
                                 <div className="flex items-center gap-1 mt-1">
                                     <div className="w-1 h-1 rounded-full bg-emerald-400"></div>
-                                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Active</span>
+                                    <span className="text-[8px] text-slate-400 font-medium uppercase tracking-widest">Active</span>
                                 </div>
                             </div>
                         </div>
@@ -351,7 +351,7 @@ const ChatBot: React.FC<ChatBotProps> = ({ view, currentProject, currentSource, 
                             onChange={e => setInputValue(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSend()}
                             placeholder="Type a command (e.g. 'Create project X')..."
-                            className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-[10px] font-bold outline-none focus:ring-1 focus:ring-blue-500 transition-all disabled:opacity-50"
+                            className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-[10px] font-medium outline-none focus:ring-1 focus:ring-blue-500 transition-all disabled:opacity-50"
                             disabled={isProcessing}
                         />
                         <button
@@ -375,7 +375,7 @@ const ChatBot: React.FC<ChatBotProps> = ({ view, currentProject, currentSource, 
                     <span className="text-white text-xl">✕</span>
                 ) : (
                     <div className="relative">
-                        <span className="text-white text-2xl">💬</span>
+                        <span className="text-white text-lg">💬</span>
                         {!isOpen && (
                             <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-blue-600"></div>
                         )}

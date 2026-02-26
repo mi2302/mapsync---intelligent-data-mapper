@@ -358,7 +358,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
             </style>
 
             {toast && (
-                <div className={`fixed top-12 left-1/2 -translate-x-1/2 px-8 py-4 rounded-full shadow-2xl z-50 animate-in slide-in-from-top-4 font-black text-[10px] uppercase tracking-widest ${toast.type === 'success' ? 'bg-slate-900/90 text-white backdrop-blur-md' : 'bg-rose-500 text-white'}`}>
+                <div className={`fixed top-12 left-1/2 -translate-x-1/2 px-8 py-4 rounded-full shadow-2xl z-50 animate-in slide-in-from-top-4 font-medium text-[10px] uppercase tracking-widest ${toast.type === 'success' ? 'bg-slate-900/90 text-white backdrop-blur-md' : 'bg-rose-500 text-white'}`}>
                     {toast.message}
                 </div>
             )}
@@ -375,9 +375,9 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                 <div className="w-6 h-6 bg-blue-600 rounded-md flex items-center justify-center text-white shadow-md shadow-blue-500/10">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                                 </div>
-                                <h2 className="text-lg font-bold text-slate-900 tracking-tight uppercase">Blueprint</h2>
+                                <h2 className="text-lg font-medium text-slate-900 tracking-tight uppercase">Blueprint</h2>
                             </div>
-                            <p className="text-slate-400 text-[7px] font-bold uppercase tracking-[0.2em] pl-1">Architectural Design</p>
+                            <p className="text-slate-400 text-[7px] font-medium uppercase tracking-[0.2em] pl-1">Architectural Design</p>
                         </div>
                         <div className="flex gap-2">
                             <button
@@ -385,13 +385,13 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                 className="px-3 py-1.5 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-100 rounded-lg transition-all group"
                                 title="Wipe Draft"
                             >
-                                <span className="text-[8px] font-bold uppercase tracking-widest text-slate-300 group-hover:text-rose-600">Reset ↺</span>
+                                <span className="text-[8px] font-medium uppercase tracking-widest text-slate-300 group-hover:text-rose-600">Reset ↺</span>
                             </button>
                             <button
                                 onClick={onBack}
                                 className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-all group"
                             >
-                                <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-slate-900">Close ✕</span>
+                                <span className="text-[8px] font-medium uppercase tracking-widest text-slate-400 group-hover:text-slate-900">Close ✕</span>
                             </button>
                         </div>
                     </div>
@@ -426,7 +426,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                             }`}>
                                             <span className="text-xs">{s.icon}</span>
                                         </div>
-                                        <span className={`text-[7px] font-black uppercase tracking-widest transition-colors duration-500 ${isActive ? 'text-blue-600' : 'text-slate-300'}`}>
+                                        <span className={`text-[7px] font-medium uppercase tracking-widest transition-colors duration-500 ${isActive ? 'text-blue-600' : 'text-slate-300'}`}>
                                             {s.label}
                                         </span>
                                     </div>
@@ -447,8 +447,8 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                             {icon}
                                         </div>
                                         <div className="space-y-2">
-                                            <h3 className="text-3xl font-black text-slate-900 tracking-tight">{name || 'Unnamed Module'}</h3>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white px-4 py-1.5 rounded-full border border-slate-100 shadow-smInline-block">
+                                            <h3 className="text-xl font-medium text-slate-900 tracking-tight">{name || 'Unnamed Module'}</h3>
+                                            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest bg-white px-4 py-1.5 rounded-full border border-slate-100 shadow-smInline-block">
                                                 {stagedObjects.length} ENTITIES ARCHITECTED
                                             </p>
                                         </div>
@@ -458,7 +458,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                     setShowRecovery(false);
                                                     setStep('catalog');
                                                 }}
-                                                className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-[12px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all flex items-center justify-center gap-3"
+                                                className="w-full py-5 bg-blue-600 text-white rounded-2xl font-medium text-[12px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all flex items-center justify-center gap-3"
                                             >
                                                 Resume Blueprint <span>→</span>
                                             </button>
@@ -467,7 +467,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                     // Allow updating identity by just hiding the recovery card
                                                     setShowRecovery(false);
                                                 }}
-                                                className="w-full py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:border-slate-400 transition-all"
+                                                className="w-full py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-medium text-[10px] uppercase tracking-widest hover:border-slate-400 transition-all"
                                             >
                                                 Edit Identity ✎
                                             </button>
@@ -483,33 +483,33 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                         setShowRecovery(false);
                                                     }
                                                 }}
-                                                className="w-full py-2 text-slate-300 hover:text-rose-500 font-black text-[8px] uppercase tracking-widest transition-colors"
+                                                className="w-full py-2 text-slate-300 hover:text-rose-500 font-medium text-[8px] uppercase tracking-widest transition-colors"
                                             >
                                                 Purge & Start New Architect ↺
                                             </button>
                                         </div>
                                     </div>
-                                    <p className="text-center text-[8px] font-bold text-slate-300 uppercase tracking-[0.3em]">Session Recovered from Local Memory</p>
+                                    <p className="text-center text-[8px] font-medium text-slate-300 uppercase tracking-[0.3em]">Session Recovered from Local Memory</p>
                                 </div>
                             ) : (
                                 <>
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2 px-1">
                                             <div className="w-0.5 h-2 bg-blue-600 rounded-full"></div>
-                                            <label className="text-[9px] font-bold text-slate-900 uppercase tracking-widest">Core Module Identity</label>
+                                            <label className="text-[9px] font-medium text-slate-900 uppercase tracking-widest">Core Module Identity</label>
                                         </div>
                                         <input
                                             type="text"
                                             value={name}
                                             onChange={(e) => setName(e.target.value)}
                                             placeholder="Enter module name..."
-                                            className="w-full text-2xl font-bold p-6 bg-white border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-100 shadow-sm transition-all placeholder:text-slate-200"
+                                            className="w-full text-lg font-medium p-6 bg-white border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-100 shadow-sm transition-all placeholder:text-slate-200"
                                             autoFocus
                                         />
                                     </div>
 
                                     <div className="space-y-4">
-                                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1 block">Visual Signature</label>
+                                        <label className="text-[9px] font-medium text-slate-400 uppercase tracking-widest px-1 block">Visual Signature</label>
                                         <div className="grid grid-cols-5 md:grid-cols-10 gap-2 bg-slate-50/30 p-3 rounded-2xl border border-slate-100">
                                             {icons.map(i => (
                                                 <button
@@ -526,7 +526,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                     <div className="pt-6 flex justify-end">
                                         <button
                                             onClick={nextToCatalog}
-                                            className="px-8 py-4 bg-slate-900 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-blue-600 shadow-lg transition-all flex items-center gap-3 group"
+                                            className="px-8 py-4 bg-slate-900 text-white rounded-xl text-[9px] font-medium uppercase tracking-widest hover:bg-blue-600 shadow-lg transition-all flex items-center gap-3 group"
                                         >
                                             Model Architecture <span className="group-hover:translate-x-1 transition-transform">→</span>
                                         </button>
@@ -540,13 +540,13 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                         <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
                             <div className="flex items-center justify-between px-1">
                                 <div className="space-y-0.5">
-                                    <h3 className="text-base font-bold text-slate-900 uppercase tracking-tight">Module Workbench</h3>
-                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Managing {stagedObjects.length} entities in {name}</p>
+                                    <h3 className="text-base font-medium text-slate-900 uppercase tracking-tight">Module Workbench</h3>
+                                    <p className="text-[8px] font-medium text-slate-400 uppercase tracking-widest">Managing {stagedObjects.length} entities in {name}</p>
                                 </div>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => openEditor()}
-                                        className="px-5 py-2.5 bg-slate-900 text-white rounded-lg text-[8px] font-bold uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md flex items-center gap-2 group"
+                                        className="px-5 py-2.5 bg-slate-900 text-white rounded-lg text-[8px] font-medium uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md flex items-center gap-2 group"
                                     >
                                         <span className="text-sm group-hover:scale-110 transition-transform">+</span> Add Data Entity
                                     </button>
@@ -555,20 +555,20 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
 
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex flex-col gap-0.5">
-                                    <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] flex items-center gap-2">
+                                    <h3 className="text-[10px] font-medium text-slate-900 uppercase tracking-[0.2em] flex items-center gap-2">
                                         <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
                                         Module Blueprint
                                     </h3>
-                                    <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest">{stagedObjects.length} Entities Orchestrated</p>
+                                    <p className="text-[7px] font-medium text-slate-400 uppercase tracking-widest">{stagedObjects.length} Entities Orchestrated</p>
                                 </div>
                             </div>
 
                             {stagedObjects.length === 0 ? (
                                 <div className="py-12 text-center space-y-4 glass-card rounded-2xl border-2 border-dashed border-slate-100/50 bg-slate-50/30">
-                                    <div className="text-4xl opacity-50">🏗️</div>
+                                    <div className="text-lg opacity-50">🏗️</div>
                                     <div className="space-y-1">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Architectural Canvas Empty</p>
-                                        <p className="text-[8px] font-bold text-slate-300 uppercase tracking-tight">Begin by adding your first data entity</p>
+                                        <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest">Architectural Canvas Empty</p>
+                                        <p className="text-[8px] font-medium text-slate-300 uppercase tracking-tight">Begin by adding your first data entity</p>
                                     </div>
                                 </div>
                             ) : (
@@ -595,12 +595,12 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                             </div>
 
                                             <div className="space-y-0.5 relative z-10">
-                                                <p className="text-xs font-bold text-slate-900 uppercase tracking-tight">{obj.logicalName}</p>
-                                                <p className="text-[7px] font-bold text-blue-600/60 uppercase tracking-widest">MSAI_{obj.name}</p>
+                                                <p className="text-xs font-medium text-slate-900 uppercase tracking-tight">{obj.logicalName}</p>
+                                                <p className="text-[7px] font-medium text-blue-600/60 uppercase tracking-widest">MSAI_{obj.name}</p>
                                             </div>
 
                                             <div className="flex items-center gap-2 pt-2 border-t border-slate-50 relative z-10">
-                                                <span className="text-[7px] font-bold text-slate-300 uppercase tracking-widest">{obj.columns.length} Fields</span>
+                                                <span className="text-[7px] font-medium text-slate-300 uppercase tracking-widest">{obj.columns.length} Fields</span>
                                             </div>
                                         </div>
                                     ))}
@@ -610,12 +610,12 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                             <div className="pt-6 flex items-center justify-between">
                                 <button
                                     onClick={() => setShowRecovery(false)}
-                                    className="text-[8px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-all flex items-center gap-2"
+                                    className="text-[8px] font-medium uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-all flex items-center gap-2"
                                 >← Update Identity</button>
                                 <button
                                     onClick={handleLaunch}
                                     disabled={stagedObjects.length === 0 || isProvisioning}
-                                    className="px-8 py-4 bg-blue-600 text-white rounded-xl font-bold text-[9px] uppercase tracking-widest shadow-md hover:bg-blue-700 disabled:opacity-30 transition-all flex items-center gap-3"
+                                    className="px-8 py-4 bg-blue-600 text-white rounded-xl font-medium text-[9px] uppercase tracking-widest shadow-md hover:bg-blue-700 disabled:opacity-30 transition-all flex items-center gap-3"
                                 >
                                     {isProvisioning ? 'Splicing...' : 'Finalize & Provision Module'}
                                     <span className="animate-pulse">🚀</span>
@@ -629,13 +629,13 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                             <div className="bg-white/40 p-5 rounded-2xl border border-slate-100 shadow-sm">
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between px-1">
-                                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                        <label className="text-[9px] font-medium text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                             <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
                                             Object Essence (Logical Name)
                                         </label>
                                         <div className="flex items-center gap-2 opacity-40 hover:opacity-100 transition-opacity">
-                                            <span className="text-[7px] font-bold text-slate-300 uppercase tracking-widest">System ID:</span>
-                                            <span className="text-[8px] font-mono font-bold text-slate-400">MSAI_{dTableName || '...'}</span>
+                                            <span className="text-[7px] font-medium text-slate-300 uppercase tracking-widest">System ID:</span>
+                                            <span className="text-[8px] font-mono font-medium text-slate-400">MSAI_{dTableName || '...'}</span>
                                         </div>
                                     </div>
                                     <input
@@ -647,7 +647,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                             setDTableName(val.toUpperCase().replace(/[^A-Z0-9]/g, '_').substring(0, 26));
                                         }}
                                         placeholder="e.g. Sales Invoice, Team Member"
-                                        className="w-full text-lg font-bold p-5 bg-white border border-slate-100 rounded-xl outline-none focus:ring-4 focus:ring-blue-50 transition-all shadow-inner placeholder:text-slate-200"
+                                        className="w-full text-lg font-medium p-5 bg-white border border-slate-100 rounded-xl outline-none focus:ring-4 focus:ring-blue-50 transition-all shadow-inner placeholder:text-slate-200"
                                         autoFocus
                                     />
                                 </div>
@@ -658,12 +658,12 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                     <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 space-y-4 animate-in fade-in zoom-in-95 duration-300">
                                         <div className="flex items-center justify-between mb-2">
                                             <div className="flex flex-col gap-0.5">
-                                                <h5 className="text-[8px] font-bold text-blue-600 uppercase tracking-[0.2em]">Legacy Reference Found</h5>
-                                                <p className="text-[6px] text-slate-400 font-bold uppercase tracking-tight">Attributes are synced globally to your current table blueprint</p>
+                                                <h5 className="text-[8px] font-medium text-blue-600 uppercase tracking-[0.2em]">Legacy Reference Found</h5>
+                                                <p className="text-[6px] text-slate-400 font-medium uppercase tracking-tight">Attributes are synced globally to your current table blueprint</p>
                                             </div>
                                             <button
                                                 onClick={() => setMatches([])}
-                                                className="text-[8px] font-bold text-slate-300 hover:text-slate-900 uppercase"
+                                                className="text-[8px] font-medium text-slate-300 hover:text-slate-900 uppercase"
                                             >Dismiss</button>
                                         </div>
 
@@ -673,13 +673,13 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                     <div className="flex items-center justify-between border-b border-slate-50 pb-2">
                                                         <div className="flex flex-col">
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-[9px] font-bold text-slate-700">{m.icon} {m.name}</span>
+                                                                <span className="text-[9px] font-medium text-slate-700">{m.icon} {m.name}</span>
                                                                 {m.moduleName && (
                                                                     <span className="text-[7px] font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded uppercase tracking-tight">
                                                                         Part of {m.moduleName}
                                                                     </span>
                                                                 )}
-                                                                <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[5px] font-black uppercase tracking-tighter border border-blue-100 flex items-center gap-1">
+                                                                <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[5px] font-medium uppercase tracking-tighter border border-blue-100 flex items-center gap-1">
                                                                     <span className="w-1 h-1 rounded-full bg-blue-400"></span>
                                                                     High Confidence Match
                                                                 </span>
@@ -701,7 +701,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                                         });
                                                                         showToast(`Selected all fields from ${m.name}`);
                                                                     }}
-                                                                    className="text-[7px] font-bold text-blue-600 uppercase hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                                                                    className="text-[7px] font-medium text-blue-600 uppercase hover:bg-blue-50 px-2 py-1 rounded transition-colors"
                                                                 >Select All</button>
                                                                 <button
                                                                     onClick={() => {
@@ -709,7 +709,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                                         setDColumns(dColumns.filter(c => !mNames.includes(c.name.toUpperCase())));
                                                                         showToast(`Removed fields from ${m.name}`);
                                                                     }}
-                                                                    className="text-[7px] font-bold text-rose-500 uppercase hover:bg-rose-50 px-2 py-1 rounded transition-colors"
+                                                                    className="text-[7px] font-medium text-rose-500 uppercase hover:bg-rose-50 px-2 py-1 rounded transition-colors"
                                                                 >Remove All</button>
                                                             </div>
                                                             <button
@@ -726,7 +726,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                                 return (
                                                                     <div
                                                                         key={f.id}
-                                                                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-bold transition-all border ${isAlreadyIn
+                                                                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-medium transition-all border ${isAlreadyIn
                                                                             ? 'bg-blue-50 border-blue-200 text-blue-700 ring-1 ring-blue-100 shadow-sm'
                                                                             : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400 hover:bg-blue-50/30'
                                                                             }`}
@@ -746,8 +746,8 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                                                 }}
                                                                                 className="flex items-center gap-1.5 px-1.5 py-0.5 bg-blue-50 hover:bg-rose-50 border border-blue-100 hover:border-rose-200 rounded transition-all group/unsync"
                                                                             >
-                                                                                <span className="text-blue-600 font-black text-[7px] group-hover/unsync:hidden">✓ SYNCED</span>
-                                                                                <span className="hidden group-hover/unsync:inline text-rose-500 font-black text-[7px]">UNSYNC 🗑️</span>
+                                                                                <span className="text-blue-600 font-medium text-[7px] group-hover/unsync:hidden">✓ SYNCED</span>
+                                                                                <span className="hidden group-hover/unsync:inline text-rose-500 font-medium text-[7px]">UNSYNC 🗑️</span>
                                                                             </button>
                                                                         )}
                                                                     </div>
@@ -755,7 +755,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                             })
                                                         ) : (
                                                             <div className="w-full py-3 bg-slate-50 rounded-lg text-center border border-dashed border-slate-200">
-                                                                <span className="text-[7px] font-bold text-slate-400 uppercase tracking-widest">No predefined attributes</span>
+                                                                <span className="text-[7px] font-medium text-slate-400 uppercase tracking-widest">No predefined attributes</span>
                                                             </div>
                                                         )}
                                                     </div>
@@ -769,8 +769,8 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                     <div className="mb-6 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 animate-in slide-in-from-top-2 duration-300">
                                         <div className="flex items-center justify-between mb-4">
                                             <div className="flex flex-col gap-0.5">
-                                                <h5 className="text-[8px] font-bold text-indigo-600 uppercase tracking-[0.2em]">✨ AI Intelligence Menu</h5>
-                                                <p className="text-[6px] text-slate-400 font-bold uppercase tracking-tight">AI identified {aiSuggestions.length} domain-specific attributes</p>
+                                                <h5 className="text-[8px] font-medium text-indigo-600 uppercase tracking-[0.2em]">✨ AI Intelligence Menu</h5>
+                                                <p className="text-[6px] text-slate-400 font-medium uppercase tracking-tight">AI identified {aiSuggestions.length} domain-specific attributes</p>
                                             </div>
                                             <div className="flex gap-2">
                                                 <button
@@ -784,11 +784,11 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                         setDColumns(next);
                                                         setAiSuggestions([]);
                                                     }}
-                                                    className="text-[7px] font-bold text-indigo-600 uppercase hover:bg-indigo-100 px-2 py-1 rounded transition-colors"
+                                                    className="text-[7px] font-medium text-indigo-600 uppercase hover:bg-indigo-100 px-2 py-1 rounded transition-colors"
                                                 >Add All</button>
                                                 <button
                                                     onClick={() => setAiSuggestions([])}
-                                                    className="text-[8px] font-bold text-slate-300 hover:text-slate-900 uppercase"
+                                                    className="text-[8px] font-medium text-slate-300 hover:text-slate-900 uppercase"
                                                 >Dismiss</button>
                                             </div>
                                         </div>
@@ -798,7 +798,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                 return (
                                                     <div
                                                         key={idx}
-                                                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-bold transition-all border ${isAlreadyIn
+                                                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-medium transition-all border ${isAlreadyIn
                                                             ? 'bg-indigo-100 border-indigo-200 text-indigo-700 ring-1 ring-indigo-100 shadow-sm'
                                                             : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-400 hover:bg-indigo-50/30'
                                                             }`}
@@ -820,7 +820,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                             >
                                                                 <span className="group-hover/ai:hidden">✓</span>
                                                                 <span className="hidden group-hover/ai:inline text-[8px]">✕</span>
-                                                                <span className="text-[5px] uppercase font-black tracking-tighter opacity-50">Synced</span>
+                                                                <span className="text-[5px] uppercase font-medium tracking-tighter opacity-50">Synced</span>
                                                             </button>
                                                         )}
                                                     </div>
@@ -831,26 +831,26 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                 )}
 
                                 <div className="flex items-center justify-between px-1">
-                                    <h4 className="text-[9px] font-bold text-slate-900 uppercase tracking-widest">Attributes</h4>
+                                    <h4 className="text-[9px] font-medium text-slate-900 uppercase tracking-widest">Attributes</h4>
                                     <div className="flex gap-1.5">
                                         <button
                                             onClick={() => {
                                                 if (confirm("Wipe all active columns?")) setDColumns([]);
                                             }}
-                                            className="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-md text-[7px] font-bold uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                                            className="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-md text-[7px] font-medium uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all shadow-sm"
                                         >
                                             🗑️ Trash All
                                         </button>
                                         <button
                                             onClick={handleAIsuggest}
                                             disabled={isSuggesting || !dLogicalName}
-                                            className={`px-3 py-1.5 bg-indigo-600 text-white rounded-md text-[7px] font-bold uppercase tracking-widest flex items-center gap-1.5 hover:bg-slate-900 disabled:opacity-30 transition-all shadow-sm ${isSuggesting ? 'animate-pulse' : ''}`}
+                                            className={`px-3 py-1.5 bg-indigo-600 text-white rounded-md text-[7px] font-medium uppercase tracking-widest flex items-center gap-1.5 hover:bg-slate-900 disabled:opacity-30 transition-all shadow-sm ${isSuggesting ? 'animate-pulse' : ''}`}
                                         >
                                             {isSuggesting ? '...' : '✨ AI Suggest'}
                                         </button>
                                         <button
                                             onClick={() => setDColumns([...dColumns, { name: '', type: 'VARCHAR', required: false, isPk: false }])}
-                                            className="px-3 py-1.5 bg-slate-900 text-white rounded-md text-[7px] font-bold uppercase tracking-widest hover:bg-blue-600 transition-all"
+                                            className="px-3 py-1.5 bg-slate-900 text-white rounded-md text-[7px] font-medium uppercase tracking-widest hover:bg-blue-600 transition-all"
                                         >
                                             + Add
                                         </button>
@@ -869,7 +869,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                     next[i].name = e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '');
                                                     setDColumns(next);
                                                 }}
-                                                className="flex-1 bg-slate-50 border border-slate-100 rounded-lg p-3 text-[9px] font-bold outline-none group-hover:bg-white transition-colors"
+                                                className="flex-1 bg-slate-50 border border-slate-100 rounded-lg p-3 text-[9px] font-medium outline-none group-hover:bg-white transition-colors"
                                             />
                                             <select
                                                 value={col.type}
@@ -878,7 +878,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                     next[i].type = e.target.value as DataType;
                                                     setDColumns(next);
                                                 }}
-                                                className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-[8px] font-bold outline-none group-hover:bg-white transition-colors min-w-[100px]"
+                                                className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-[8px] font-medium outline-none group-hover:bg-white transition-colors min-w-[100px]"
                                             >
                                                 <option value="VARCHAR">CHR</option>
                                                 <option value="NUMERIC">NUM</option>
@@ -910,7 +910,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                 <div className="flex gap-4">
                                     <button
                                         onClick={() => stagedObjects.length > 0 ? setStep('catalog') : setStep('profile')}
-                                        className="text-[8px] font-bold uppercase tracking-widest text-slate-300 hover:text-slate-900 transition-all px-2"
+                                        className="text-[8px] font-medium uppercase tracking-widest text-slate-300 hover:text-slate-900 transition-all px-2"
                                     >← {stagedObjects.length > 0 ? 'Back to Blueprint' : 'Back to Identity'}</button>
                                     {editingIndex !== null && (
                                         <button
@@ -920,7 +920,7 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                     setStep('catalog');
                                                 }
                                             }}
-                                            className="text-[8px] font-bold uppercase tracking-widest text-rose-400 hover:text-rose-600 transition-all border-l border-slate-100 pl-4"
+                                            className="text-[8px] font-medium uppercase tracking-widest text-rose-400 hover:text-rose-600 transition-all border-l border-slate-100 pl-4"
                                         >Delete Object</button>
                                     )}
                                 </div>
@@ -932,13 +932,13 @@ export const CustomModuleCreation: React.FC<CustomModuleCreationProps> = ({ onBa
                                                 setTimeout(() => openEditor(), 50);
                                             }
                                         }}
-                                        className="px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-[8px] font-bold uppercase tracking-widest hover:border-slate-900 hover:text-slate-900 transition-all shadow-sm"
+                                        className="px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-[8px] font-medium uppercase tracking-widest hover:border-slate-900 hover:text-slate-900 transition-all shadow-sm"
                                     >
                                         Save & Add Another
                                     </button>
                                     <button
                                         onClick={() => saveObject()}
-                                        className="px-8 py-3 bg-slate-900 text-white rounded-lg text-[8px] font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-md flex items-center gap-2 group"
+                                        className="px-8 py-3 bg-slate-900 text-white rounded-lg text-[8px] font-medium uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-md flex items-center gap-2 group"
                                     >
                                         💾 Save to Blueprint <span className="group-hover:scale-110 transition-transform">✓</span>
                                     </button>

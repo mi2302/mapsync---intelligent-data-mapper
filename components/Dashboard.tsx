@@ -29,7 +29,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
             </button>
           )}
           <div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tighter mb-1 flex items-center gap-3">
+            <h1 className="text-lg font-medium text-slate-900 tracking-tighter mb-1 flex items-center gap-3">
               {currentSource?.SOURCE_NAME || 'Source'} Dashboard
               <span className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full border border-blue-100 tracking-widest">Active</span>
             </h1>
@@ -39,8 +39,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
         <div className="flex gap-4 items-center">
           <div className="h-10 w-px bg-slate-200 mx-2 hidden md:block"></div>
           <div className="bg-slate-50 px-6 py-4 rounded-3xl border border-slate-200 flex flex-col items-center min-w-[100px]">
-            <span className="text-2xl font-black text-blue-600">{configs.length}</span>
-            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Registries</span>
+            <span className="text-lg font-medium text-blue-600">{configs.length}</span>
+            <span className="text-[8px] font-medium text-slate-400 uppercase tracking-widest">Registries</span>
           </div>
         </div>
       </div>
@@ -54,10 +54,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
                 className="p-8 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between"
               >
                 <div className="flex items-center gap-4">
-                  <span className="text-3xl group-hover/card:scale-110 transition-transform">{group.icon}</span>
+                  <span className="text-xl group-hover/card:scale-110 transition-transform">{group.icon}</span>
                   <div>
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest leading-none mb-1">{group.name}</h3>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{group.objects.length} Objects Managed</p>
+                    <h3 className="text-sm font-medium text-slate-900 uppercase tracking-widest leading-none mb-1">{group.name}</h3>
+                    <p className="text-[9px] font-medium text-slate-400 uppercase tracking-tighter">{group.objects.length} Objects Managed</p>
                   </div>
                 </div>
                 {/* Only allow creation if none exist */}
@@ -74,7 +74,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
               <div className="flex-1 p-6 space-y-3">
                 {groupConfigs.length === 0 ? (
                   <div className="h-32 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-[2rem]">
-                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">No Registry Configured</p>
+                    <p className="text-[9px] font-medium text-slate-300 uppercase tracking-widest">No Registry Configured</p>
                   </div>
                 ) : (
                   groupConfigs.map(config => (
@@ -84,8 +84,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
                       className="group/item flex items-center justify-between p-4 bg-slate-50 border border-transparent hover:border-blue-200 hover:bg-white rounded-2xl transition-all cursor-pointer shadow-sm hover:shadow-md"
                     >
                       <div className="flex flex-col truncate">
-                        <span className="text-[10px] font-black text-slate-700 truncate group-hover/item:text-blue-600">{config.name}</span>
-                        <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{Object.keys(config.objectMappings).length} Data Objects mapped</span>
+                        <span className="text-[10px] font-medium text-slate-700 truncate group-hover/item:text-blue-600">{config.name}</span>
+                        <span className="text-[7px] font-medium text-slate-400 uppercase tracking-tighter mt-1">{Object.keys(config.objectMappings).length} Data Objects mapped</span>
                       </div>
                       <div className="flex items-center gap-2 transition-opacity">
                         <button
@@ -111,7 +111,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
               <div className="p-6 bg-slate-50 border-t border-slate-100 mt-auto">
                 <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
                   {group.objects.map(obj => (
-                    <span key={obj.id} className="whitespace-nowrap bg-white border border-slate-200 px-3 py-1.5 rounded-full text-[7px] font-black text-slate-500 uppercase tracking-widest shadow-sm">
+                    <span key={obj.id} className="whitespace-nowrap bg-white border border-slate-200 px-3 py-1.5 rounded-full text-[7px] font-medium text-slate-500 uppercase tracking-widest shadow-sm">
                       ● {obj.name}
                     </span>
                   ))}

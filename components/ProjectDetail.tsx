@@ -167,9 +167,9 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                         ← Back
                     </button>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                        <h1 className="text-lg font-medium text-slate-900 tracking-tight flex items-center gap-3">
                             {project.PROJECT_NAME}
-                            <span className="text-[10px] bg-slate-100 text-slate-500 px-3 py-1 rounded-full border border-slate-200 uppercase tracking-widest font-black">Active Project</span>
+                            <span className="text-[10px] bg-slate-100 text-slate-500 px-3 py-1 rounded-full border border-slate-200 uppercase tracking-widest font-medium">Active Project</span>
                         </h1>
                         <p className="text-sm text-slate-500">{project.DESCRIPTION}</p>
                     </div>
@@ -177,7 +177,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setShowCreateSource(true)}
-                        className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg shadow-blue-200 flex items-center gap-2"
+                        className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-medium text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg shadow-blue-200 flex items-center gap-2"
                     >
                         <span>+</span> New Source
                     </button>
@@ -191,10 +191,10 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                         <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-2xl animate-in zoom-in duration-300">
                             <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-100">
                                 <div>
-                                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                    <h2 className="text-lg font-medium text-slate-900 uppercase tracking-tight">
                                         {editingSource ? `Source Scope: ${editingSource.SOURCE_NAME}` : 'Project Scope'}
                                     </h2>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                    <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mt-1">
                                         Select modules to enable for this {editingSource ? 'specific input' : 'project context'}
                                     </p>
                                 </div>
@@ -229,7 +229,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                                     return (
                                         <div key={group.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                                             <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
-                                                <h3 className="font-bold text-sm text-slate-400 uppercase flex items-center gap-2">
+                                                <h3 className="font-medium text-sm text-slate-400 uppercase flex items-center gap-2">
                                                     {group.icon || '📦'} {group.name}
                                                 </h3>
                                                 <input
@@ -256,7 +256,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                                                                 onChange={() => toggleModule(Number(objModuleId))}
                                                                 className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                                             />
-                                                            <span className="text-xs font-bold text-slate-700">{obj.name}</span>
+                                                            <span className="text-xs font-medium text-slate-700">{obj.name}</span>
                                                         </label>
                                                     )
                                                 })}
@@ -269,14 +269,14 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                             <div className="flex gap-4 mt-10 pt-6 border-t border-slate-100">
                                 <button
                                     onClick={() => { setIsEditingModules(false); setEditingSource(null); }}
-                                    className="px-8 py-3 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200"
+                                    className="px-8 py-3 bg-slate-100 text-slate-500 rounded-2xl font-medium text-[10px] uppercase tracking-widest hover:bg-slate-200"
                                 >
                                     Cancel
                                 </button>
                                 <div className="flex-1"></div>
                                 <button
                                     onClick={handleSaveModules}
-                                    className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-200"
+                                    className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-medium text-[10px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-200"
                                 >
                                     Apply Scope
                                 </button>
@@ -289,65 +289,66 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                     <div className="space-y-8 animate-in slide-in-from-bottom-2 fade-in duration-300">
                         <div className="flex justify-between items-center">
                             <div>
-                                <h2 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.3em]">Project Workspaces</h2>
+                                <h2 className="text-[12px] font-medium text-slate-400 uppercase tracking-[0.3em]">Project Workspaces</h2>
                                 <p className="text-slate-500 text-sm font-medium mt-1">Select an ingestion stream to begin mapping.</p>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                             {sources.map(src => (
                                 <div
                                     key={src.SOURCE_ID}
-                                    onClick={() => onSelectSource(src, projectModules)}
-                                    className="bg-white p-0 rounded-[2.5rem] border border-slate-200 hover:border-blue-500 hover:shadow-[0_20px_50px_rgba(59,130,246,0.1)] transition-all group/item flex flex-col cursor-pointer overflow-hidden relative shadow-sm"
+                                    className="group relative bg-white/60 backdrop-blur-xl border border-white/60 rounded-[2.5rem] p-8 hover:border-brand-300 hover:shadow-[0_20px_50px_rgba(14,165,233,0.15)] transition-all duration-500 overflow-hidden flex flex-col justify-between min-h-[220px]"
                                 >
-                                    {/* Top Accent */}
-                                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                                    {/* Stunning Card Background FX */}
+                                    <div className="absolute inset-0 bg-gradient-to-br from-brand-50/50 to-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-0"></div>
+                                    <div className="absolute -top-24 -right-24 w-48 h-48 bg-brand-400/20 rounded-full blur-[50px] group-hover:bg-brand-400/30 transition-colors z-0"></div>
 
-                                    <div className="p-7 flex-1 flex flex-col justify-between">
-                                        <div className="flex justify-between items-start mb-6">
-                                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-[1.25rem] border border-blue-100 group-hover/item:scale-110 transition-all shadow-sm">
-                                                <span className="text-3xl grayscale group-hover/item:grayscale-0 transition-all block">📂</span>
-                                            </div>
-                                            <button
-                                                onClick={(e) => startSourceModuleEdit(e, src)}
-                                                className="px-3 py-1.5 bg-white text-blue-600 hover:text-white hover:bg-blue-600 rounded-xl transition-all text-[9px] font-black uppercase tracking-widest border border-blue-100 hover:border-blue-600 shadow-sm flex items-center gap-1.5"
-                                                title="Manage Source Modules"
-                                            >
-                                                <span>🧩</span> Scope
-                                            </button>
-                                        </div>
-
-                                        <div>
-                                            <h3 className="font-black text-base text-slate-800 leading-tight tracking-tight group-hover/item:text-blue-600 transition-colors mb-1">{src.SOURCE_NAME}</h3>
-                                            <p className="text-slate-400 text-[10px] font-bold line-clamp-2 tracking-tighter leading-snug">{src.DESCRIPTION || 'Core data source'}</p>
-                                        </div>
-
-                                        <div className="mt-6 pt-5 border-t border-slate-50 flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                                <span className="text-[8px] text-slate-400 font-black uppercase tracking-widest">Linked</span>
-                                            </div>
-                                            <span className="text-[8px] text-slate-300 font-black uppercase tracking-widest">{new Date(src.CREATED_AT).toLocaleDateString()}</span>
-                                        </div>
+                                    <div className="absolute top-0 right-0 p-6 -mr-4 -mt-4 opacity-5 group-hover:opacity-10 group-hover:scale-110 transition-all duration-500 z-0 pointer-events-none">
+                                        <span className="text-8xl filter drop-shadow-xl">📂</span>
                                     </div>
 
-                                    <div className="bg-slate-50 p-5 flex items-center justify-between group-hover/item:bg-slate-900 transition-all border-t border-slate-100 group-hover/item:border-slate-900">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] group-hover/item:text-blue-400 group-hover/item:translate-x-1 transition-all">Launch Workspace</span>
-                                        <div className="w-8 h-8 rounded-full bg-white group-hover/item:bg-blue-600 flex items-center justify-center transition-all shadow-sm group-hover/item:shadow-blue-500/20">
-                                            <span className="text-slate-400 group-hover/item:text-white transition-all transform group-hover/item:translate-x-0.5">→</span>
+                                    <div className="relative z-10 flex-1">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-brand-700 bg-brand-100/50 backdrop-blur-md border border-brand-200/50 px-3 py-1.5 rounded-xl shadow-sm">
+                                                Source
+                                            </span>
+                                            <span className="text-[9px] font-medium text-slate-400 uppercase tracking-widest bg-white/50 px-2.5 py-1 rounded-lg">
+                                                {new Date(src.CREATED_AT).toLocaleDateString()}
+                                            </span>
                                         </div>
+
+                                        <h3 className="text-lg font-medium text-slate-800 group-hover:text-brand-600 transition-colors duration-300 mb-3 leading-tight tracking-tight drop-shadow-sm">{src.SOURCE_NAME}</h3>
+                                        <p className="text-slate-500 text-sm font-medium line-clamp-3 mb-6 tracking-tight leading-relaxed">{src.DESCRIPTION || 'Core data source'}</p>
+                                    </div>
+
+                                    <div className="relative z-10 flex gap-3 mt-4">
+                                        <button
+                                            onClick={(e) => startSourceModuleEdit(e, src)}
+                                            className="flex-1 py-4 bg-white/80 text-slate-500 border border-slate-200/80 rounded-2xl text-[10px] font-medium uppercase tracking-widest hover:bg-brand-50 hover:text-brand-600 hover:border-brand-200 transition-all flex items-center justify-center gap-2 shadow-sm backdrop-blur-md"
+                                            title="Manage Source Modules"
+                                        >
+                                            <span className="text-sm">🧩</span> Scope
+                                        </button>
+                                        <button
+                                            onClick={() => onSelectSource(src, projectModules)}
+                                            className="flex-[1.5] py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-medium uppercase tracking-widest hover:bg-brand-600 hover:shadow-xl hover:shadow-brand-500/30 transition-all flex items-center justify-center gap-2 group/btn relative overflow-hidden"
+                                        >
+                                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300"></div>
+                                            <span className="relative">Open Workspace</span>
+                                            <span className="relative transform group-hover/btn:translate-x-1 transition-transform">→</span>
+                                        </button>
                                     </div>
                                 </div>
                             ))}
                             {sources.length === 0 && (
                                 <div className="col-span-full text-center py-20 bg-white rounded-[3rem] border border-dashed border-slate-200">
                                     <span className="text-6xl block mb-6 grayscale opacity-20">📭</span>
-                                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter mb-2">No Active Sources</h2>
+                                    <h2 className="text-xl font-medium text-slate-900 uppercase tracking-tighter mb-2">No Active Sources</h2>
                                     <p className="text-slate-400 font-medium mb-8">Deploy a data source to begin mapping architectures.</p>
                                     <button
                                         onClick={() => setShowCreateSource(true)}
-                                        className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-xl shadow-slate-200"
+                                        className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-medium text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-xl shadow-slate-200"
                                     >
                                         Deploy First Source
                                     </button>
@@ -363,10 +364,10 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                     <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-2xl animate-in zoom-in duration-300">
                         <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-100">
                             <div>
-                                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                                <h2 className="text-lg font-medium text-slate-900 uppercase tracking-tight">
                                     {createSourceStep === 1 ? 'Step 1: Source Identity' : 'Step 2: Assign Modules'}
                                 </h2>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mt-1">
                                     {createSourceStep === 1 ? 'Define the ingest source' : 'Select visible modules for this source'}
                                 </p>
                             </div>
@@ -379,18 +380,18 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                         {createSourceStep === 1 ? (
                             <div className="space-y-6">
                                 <div className="space-y-2">
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Source Name</label>
+                                    <label className="block text-[10px] font-medium text-slate-400 uppercase tracking-widest">Source Name</label>
                                     <input
                                         type="text"
                                         value={newSourceName}
                                         onChange={e => setNewSourceName(e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none font-medium text-slate-700"
                                         placeholder="e.g. AWS S3 Bucket, Salesforce REST API"
                                         autoFocus
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</label>
+                                    <label className="block text-[10px] font-medium text-slate-400 uppercase tracking-widest">Description</label>
                                     <textarea
                                         value={newSourceDesc}
                                         onChange={e => setNewSourceDesc(e.target.value)}
@@ -426,7 +427,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                                     return (
                                         <div key={group.id} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 group/module hover:border-blue-200 transition-colors">
                                             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200/50">
-                                                <h3 className="font-bold text-xs text-slate-400 uppercase flex items-center gap-2">
+                                                <h3 className="font-medium text-xs text-slate-400 uppercase flex items-center gap-2">
                                                     {group.icon || '📦'} {group.name}
                                                 </h3>
                                                 <input
@@ -446,7 +447,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                                                             onChange={() => toggleModule(obj.moduleId)}
                                                             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                                         />
-                                                        <span className="text-xs font-bold text-slate-600">{obj.name}</span>
+                                                        <span className="text-xs font-medium text-slate-600">{obj.name}</span>
                                                     </label>
                                                 ))}
                                             </div>
@@ -459,7 +460,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                         <div className="flex gap-4 mt-10 pt-6 border-t border-slate-100">
                             <button
                                 onClick={() => { setShowCreateSource(false); setCreateSourceStep(1); }}
-                                className="px-8 py-3 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                                className="px-8 py-3 bg-slate-100 text-slate-500 rounded-2xl font-medium text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-colors"
                             >
                                 Cancel
                             </button>
@@ -470,7 +471,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                                         setCreateSourceStep(2);
                                     }}
                                     disabled={!newSourceName}
-                                    className="px-10 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 disabled:opacity-50"
+                                    className="px-10 py-3 bg-slate-900 text-white rounded-2xl font-medium text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 disabled:opacity-50"
                                 >
                                     Next: Select Modules
                                 </button>
@@ -478,13 +479,13 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                                 <>
                                     <button
                                         onClick={() => setCreateSourceStep(1)}
-                                        className="px-8 py-3 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-colors mr-2"
+                                        className="px-8 py-3 bg-slate-100 text-slate-500 rounded-2xl font-medium text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-colors mr-2"
                                     >
                                         Back
                                     </button>
                                     <button
                                         onClick={handleCreateSource}
-                                        className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200"
+                                        className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-medium text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200"
                                     >
                                         Create Source
                                     </button>

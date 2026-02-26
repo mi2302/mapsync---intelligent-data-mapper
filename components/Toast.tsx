@@ -19,10 +19,10 @@ export const Toast: React.FC<ToastProps> = ({ message, type }) => {
           )}
         </div>
         <div>
-          <p className={`text-[10px] font-black uppercase tracking-widest ${isSuccess ? 'text-slate-900' : 'text-white'}`}>
+          <p className={`text-[10px] font-medium uppercase tracking-widest ${isSuccess ? 'text-slate-900' : 'text-white'}`}>
             {isSuccess ? 'System Sync' : 'System Error'}
           </p>
-          <p className={`text-[11px] font-bold ${isSuccess ? 'text-slate-500' : 'text-rose-100'}`}>
+          <p className={`text-[11px] font-medium ${isSuccess ? 'text-slate-500' : 'text-rose-100'}`}>
             {message}
           </p>
         </div>

@@ -201,13 +201,13 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
 
         <button
           onClick={() => setActiveTab('mapping')}
-          className={`flex-1 px-8 py-4 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 ${activeTab === 'mapping' ? 'bg-white shadow-lg text-blue-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+          className={`flex-1 px-8 py-4 font-medium text-[10px] uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 ${activeTab === 'mapping' ? 'bg-white shadow-lg text-blue-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
         >
           Relational Mapper
         </button>
         <button
           onClick={() => setActiveTab('preview')}
-          className={`flex-1 px-8 py-4 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 ${activeTab === 'preview' ? 'bg-white shadow-lg text-blue-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+          className={`flex-1 px-8 py-4 font-medium text-[10px] uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 ${activeTab === 'preview' ? 'bg-white shadow-lg text-blue-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
         >
           SQL Preview
         </button>
@@ -217,7 +217,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
               console.log('Run Sync button clicked in MappingInterface');
               onSync();
             }}
-            className="ml-2 px-8 py-4 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl bg-emerald-500 text-white shadow-lg hover:bg-emerald-600 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2"
+            className="ml-2 px-8 py-4 font-medium text-[10px] uppercase tracking-[0.2em] rounded-2xl bg-emerald-500 text-white shadow-lg hover:bg-emerald-600 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2"
           >
             <span className="text-sm">🚀</span> Run Sync
           </button>
@@ -230,8 +230,8 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
             <div className="w-80 bg-slate-50/50 border-r border-slate-200 flex flex-col overflow-hidden shrink-0">
               <div className="p-5 border-b border-slate-200 space-y-4 bg-white/50">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Source Attributes ({filteredSourceHeaders.length})</h3>
-                  <span className="text-[8px] font-bold text-slate-300">TOTAL: {source.headers.length}</span>
+                  <h3 className="text-[9px] font-medium text-slate-400 uppercase tracking-widest">Source Attributes ({filteredSourceHeaders.length})</h3>
+                  <span className="text-[8px] font-medium text-slate-300">TOTAL: {source.headers.length}</span>
                 </div>
 
                 <div className="relative group">
@@ -240,7 +240,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                     placeholder="Search attributes..."
                     value={sourceSearch}
                     onChange={(e) => setSourceSearch(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] font-bold outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50 transition-all pl-9"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] font-medium outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50 transition-all pl-9"
                   />
                   <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -257,7 +257,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                     <button
                       key={type}
                       onClick={() => setActiveTypeFilter(type)}
-                      className={`px-3 py-1.5 rounded-lg text-[7px] font-black uppercase tracking-tighter border transition-all shrink-0 ${activeTypeFilter === type ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
+                      className={`px-3 py-1.5 rounded-lg text-[7px] font-medium uppercase tracking-tighter border transition-all shrink-0 ${activeTypeFilter === type ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}
                     >
                       {type === 'ALL' ? 'Everything' : type}
                     </button>
@@ -282,10 +282,10 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                       >
                         <div className="flex items-center gap-2 overflow-hidden">
                           <span className="text-sm shrink-0">{isExpanded ? '📂' : '📁'}</span>
-                          <span className="text-[9px] font-black text-slate-600 uppercase truncate text-left">{fileName}</span>
+                          <span className="text-[9px] font-medium text-slate-600 uppercase truncate text-left">{fileName}</span>
                         </div>
                         <div className="flex items-center gap-1.5 p-1 bg-white rounded-lg" onClick={e => e.stopPropagation()}>
-                          <span className="text-[8px] font-black bg-slate-50 px-1.5 py-0.5 rounded-md text-slate-400">{headersToShow.length}</span>
+                          <span className="text-[8px] font-medium bg-slate-50 px-1.5 py-0.5 rounded-md text-slate-400">{headersToShow.length}</span>
                           {onRemoveFile && (
                             <button
                               onClick={() => {
@@ -316,8 +316,8 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                                 onDragEnd={() => setDraggedHeader(null)}
                                 className={`flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-grab hover:border-blue-400 hover:shadow-md hover:bg-slate-50 transition-all active:cursor-grabbing ${draggedHeader === header ? 'opacity-40 border-dashed border-blue-400' : 'shadow-sm'}`}
                               >
-                                <span className="text-[9px] font-black text-slate-700 truncate uppercase max-w-[120px]">{header}</span>
-                                <span className={`text-[7px] font-black px-1.5 py-0.5 rounded border shrink-0 ${TYPE_COLORS[type]}`}>{TYPE_ICONS[type]}</span>
+                                <span className="text-[9px] font-medium text-slate-700 truncate uppercase max-w-[120px]">{header}</span>
+                                <span className={`text-[7px] font-medium px-1.5 py-0.5 rounded border shrink-0 ${TYPE_COLORS[type]}`}>{TYPE_ICONS[type]}</span>
                               </div>
                             );
                           })}
@@ -329,8 +329,8 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
 
                 {filteredSourceHeaders.length === 0 && (
                   <div className="text-center py-20 grayscale opacity-40">
-                    <span className="text-2xl block mb-2">🔍</span>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">No matching attributes</p>
+                    <span className="text-lg block mb-2">🔍</span>
+                    <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest">No matching attributes</p>
                   </div>
                 )}
               </div>
@@ -339,8 +339,8 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
             <div className="flex-1 flex flex-col overflow-hidden bg-white">
               <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white sticky top-0 z-10 shrink-0">
                 <div className="flex flex-col">
-                  <h3 className="text-xl font-black text-slate-900 tracking-tighter uppercase">Mapping Orchestrator</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                  <h3 className="text-xl font-medium text-slate-900 tracking-tighter uppercase">Mapping Orchestrator</h3>
+                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
                     Target Entity: {schema.table_name || schema.name || schema.id}
                   </p>
                 </div>
@@ -352,7 +352,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                       placeholder="Filter target fields..."
                       value={targetSearch}
                       onChange={(e) => setTargetSearch(e.target.value)}
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[9px] font-bold uppercase outline-none focus:border-blue-400 focus:bg-white transition-all pl-9"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[9px] font-medium uppercase outline-none focus:border-blue-400 focus:bg-white transition-all pl-9"
                     />
                     <svg className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -361,7 +361,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                   <button
                     onClick={onAutoMap}
                     disabled={isAutoMapping}
-                    className="flex items-center gap-3 bg-blue-600 text-white px-6 py-3 rounded-xl font-black text-[9px] uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-slate-900 transition-all disabled:opacity-50"
+                    className="flex items-center gap-3 bg-blue-600 text-white px-6 py-3 rounded-xl font-medium text-[9px] uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-slate-900 transition-all disabled:opacity-50"
                   >
                     {isAutoMapping ? 'Auto-Matching...' : 'AI Semantic Map'}
                     <span className="animate-pulse">🧠</span>
@@ -379,12 +379,12 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                         <div className="grid grid-cols-12 gap-8 items-start">
                           <div className="col-span-3">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="text-[10px] font-black text-slate-900 uppercase">{field.label}</p>
+                              <p className="text-[10px] font-medium text-slate-900 uppercase">{field.label}</p>
                               {field.required && <span className="text-rose-500 text-[10px]">*</span>}
                             </div>
                             <code className="text-[8px] block bg-slate-50 px-2 py-1.5 rounded-lg text-slate-400 font-mono mb-3 border border-slate-100/50">{field.column_name}</code>
                             <div className="flex flex-wrap gap-2">
-                              <span className={`text-[7px] font-black px-2.5 py-1 rounded-full border shadow-sm ${TYPE_COLORS[field.type]}`}>{TYPE_ICONS[field.type]} {field.type}</span>
+                              <span className={`text-[7px] font-medium px-2.5 py-1 rounded-full border shadow-sm ${TYPE_COLORS[field.type]}`}>{TYPE_ICONS[field.type]} {field.type}</span>
                             </div>
                           </div>
 
@@ -402,7 +402,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                               {mapping.sourceHeader ? (
                                 <div className="flex flex-col gap-2 w-full px-6">
                                   <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-black text-blue-700 uppercase truncate max-w-[150px]">{mapping.sourceHeader}</span>
+                                    <span className="text-[10px] font-medium text-blue-700 uppercase truncate max-w-[150px]">{mapping.sourceHeader}</span>
                                     <button
                                       onClick={() => removeSourceHeader(field.id)}
                                       className="p-1.5 bg-white rounded-full text-slate-300 hover:text-rose-500 hover:shadow-sm transition-all"
@@ -411,7 +411,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                                     </button>
                                   </div>
                                   {validation && (
-                                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[7px] font-bold ${validation.color} animate-in fade-in duration-300`}>
+                                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[7px] font-medium ${validation.color} animate-in fade-in duration-300`}>
                                       <span>{validation.icon}</span>
                                       <span className="truncate">{validation.label}</span>
                                     </div>
@@ -422,7 +422,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                                   <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
                                     <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
                                   </div>
-                                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Drop Attribute</span>
+                                  <span className="text-[8px] font-medium text-slate-400 uppercase tracking-widest">Drop Attribute</span>
                                 </div>
                               )}
                             </div>
@@ -430,13 +430,13 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
 
                           <div className="col-span-5 space-y-4">
                             <div className="flex justify-between items-center border-b border-slate-50 pb-2">
-                              <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                              <span className="text-[9px] font-medium text-slate-300 uppercase tracking-widest flex items-center gap-2">
                                 Logic Pipeline
                                 <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-400">{mapping.transformations.length}</span>
                               </span>
                               <button
                                 onClick={() => addTransformation(field.id)}
-                                className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[8px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all border border-blue-100 shadow-sm"
+                                className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[8px] font-medium uppercase hover:bg-blue-600 hover:text-white transition-all border border-blue-100 shadow-sm"
                               >
                                 New Step +
                               </button>
@@ -450,13 +450,13 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                                 return (
                                   <div key={step.id} className={`flex flex-col gap-3 p-4 rounded-[1.5rem] border ${meta.bg} ${meta.border} transition-all shadow-sm hover:shadow-md animate-in slide-in-from-right-2 duration-300`}>
                                     <div className="flex items-center gap-3">
-                                      <span className="w-5 h-5 rounded-lg bg-slate-900 text-white flex items-center justify-center text-[9px] font-black shrink-0">{idx + 1}</span>
+                                      <span className="w-5 h-5 rounded-lg bg-slate-900 text-white flex items-center justify-center text-[9px] font-medium shrink-0">{idx + 1}</span>
                                       <div className="flex items-center gap-2 flex-1 min-w-0">
                                         <span className="text-xs shrink-0">{meta.icon}</span>
                                         <select
                                           value={step.type}
                                           onChange={(e) => updateTransformationStep(field.id, step.id, { type: e.target.value as any })}
-                                          className={`flex-1 bg-transparent border-none text-[10px] font-black uppercase outline-none focus:ring-0 cursor-pointer truncate ${meta.color}`}
+                                          className={`flex-1 bg-transparent border-none text-[10px] font-medium uppercase outline-none focus:ring-0 cursor-pointer truncate ${meta.color}`}
                                         >
                                           {Object.entries(TRANSFORMATION_META).map(([v, m]) => (
                                             <option key={v} value={v} className="text-slate-900">{m.icon} {m.label}</option>
@@ -476,9 +476,9 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                                             placeholder={step.type === 'replace' ? 'Pattern to match...' : 'Static value...'}
                                             value={step.value || ''}
                                             onChange={(e) => updateTransformationStep(field.id, step.id, { value: e.target.value })}
-                                            className="w-full bg-white/60 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-bold outline-none focus:border-blue-400 focus:bg-white transition-all shadow-inner"
+                                            className="w-full bg-white/60 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-medium outline-none focus:border-blue-400 focus:bg-white transition-all shadow-inner"
                                           />
-                                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[7px] font-black text-slate-300 uppercase opacity-40 group-focus-within/input:text-blue-500 transition-colors">
+                                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[7px] font-medium text-slate-300 uppercase opacity-40 group-focus-within/input:text-blue-500 transition-colors">
                                             {step.type === 'replace' ? 'FIND' : 'INPUT'}
                                           </span>
                                         </div>
@@ -490,9 +490,9 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                                               placeholder="Replacement text..."
                                               value={step.replaceWith || ''}
                                               onChange={(e) => updateTransformationStep(field.id, step.id, { replaceWith: e.target.value })}
-                                              className="w-full bg-white/60 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-bold outline-none focus:border-blue-400 focus:bg-white transition-all shadow-inner"
+                                              className="w-full bg-white/60 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-medium outline-none focus:border-blue-400 focus:bg-white transition-all shadow-inner"
                                             />
-                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[7px] font-black text-slate-300 uppercase opacity-40 group-focus-within/input:text-blue-500 transition-colors">
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[7px] font-medium text-slate-300 uppercase opacity-40 group-focus-within/input:text-blue-500 transition-colors">
                                               REPLACE
                                             </span>
                                           </div>
@@ -505,7 +505,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                               {mapping.transformations.length === 0 && (
                                 <div className="py-6 border-2 border-dashed border-slate-100 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 opacity-40">
                                   <svg className="w-4 h-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                  <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Standard Import (Direct)</span>
+                                  <span className="text-[8px] font-medium text-slate-300 uppercase tracking-widest">Standard Import (Direct)</span>
                                 </div>
                               )}
                             </div>
@@ -516,9 +516,9 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                   })
                 ) : (
                   <div className="flex flex-col items-center justify-center py-40 bg-white rounded-[3rem] border border-dashed border-slate-200">
-                    <span className="text-4xl mb-4 grayscale opacity-40">🔍</span>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No target fields match your search</p>
-                    <button onClick={() => setTargetSearch('')} className="mt-4 text-blue-600 text-[10px] font-black uppercase hover:underline">Clear Filter</button>
+                    <span className="text-lg mb-4 grayscale opacity-40">🔍</span>
+                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">No target fields match your search</p>
+                    <button onClick={() => setTargetSearch('')} className="mt-4 text-blue-600 text-[10px] font-medium uppercase hover:underline">Clear Filter</button>
                   </div>
                 )}
               </div>
@@ -544,15 +544,15 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                   return (
                     <div className="bg-rose-500 text-white p-6 rounded-[2rem] mb-8 shadow-xl shadow-rose-500/20 border-4 border-white animate-in zoom-in duration-300">
                       <div className="flex items-center gap-4">
-                        <span className="text-3xl bg-white text-rose-500 w-12 h-12 rounded-full flex items-center justify-center shadow-lg">⚠️</span>
+                        <span className="text-xl bg-white text-rose-500 w-12 h-12 rounded-full flex items-center justify-center shadow-lg">⚠️</span>
                         <div>
-                          <h3 className="text-xl font-black uppercase tracking-tighter">Validation Error: Duplicates Detected</h3>
-                          <p className="text-[11px] font-bold opacity-90 mt-1">
+                          <h3 className="text-xl font-medium uppercase tracking-tighter">Validation Error: Duplicates Detected</h3>
+                          <p className="text-[11px] font-medium opacity-90 mt-1">
                             Found {dups.size} duplicate Primary Key(s): <span className="bg-rose-950/30 px-2 py-0.5 rounded font-mono">{Array.from(dups).slice(0, 5).join(', ')}{dups.size > 5 ? '...' : ''}</span>
                           </p>
                           <div className="flex items-center gap-2 mt-3">
-                            <span className="text-[9px] uppercase font-black tracking-[0.2em] bg-rose-950/30 px-3 py-1.5 rounded-lg border border-rose-400/30">Sync Blocked</span>
-                            <span className="text-[9px] uppercase font-bold opacity-75">Please fix duplicates in source file</span>
+                            <span className="text-[9px] uppercase font-medium tracking-[0.2em] bg-rose-950/30 px-3 py-1.5 rounded-lg border border-rose-400/30">Sync Blocked</span>
+                            <span className="text-[9px] uppercase font-medium opacity-75">Please fix duplicates in source file</span>
                           </div>
                         </div>
                       </div>
@@ -565,7 +565,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
             {/* Debug Aid: Show Raw Source Data if rows exist but might look empty */}
             {relevantRows.length > 0 && (
               <div className="mb-6 p-4 bg-slate-100 rounded-xl border border-slate-200">
-                <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Debug Checklist: Raw Source Record (First Match)</h4>
+                <h4 className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-2">Debug Checklist: Raw Source Record (First Match)</h4>
                 <pre className="text-[10px] font-mono text-slate-600 bg-white p-3 rounded-lg border border-slate-200 overflow-x-auto">
                   {JSON.stringify(relevantRows[0], null, 2)}
                 </pre>
@@ -580,7 +580,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                 <thead>
                   <tr className="bg-slate-900 text-white">
                     {schema.fields.map(f => (
-                      <th key={f.id} className="p-5 text-[9px] font-black uppercase tracking-widest border-r border-white/10 last:border-0 min-w-[150px]">
+                      <th key={f.id} className="p-5 text-[9px] font-medium uppercase tracking-widest border-r border-white/10 last:border-0 min-w-[150px]">
                         <div className="flex items-center gap-2">
                           <span className="opacity-50">{TYPE_ICONS[f.type]}</span>
                           <span>{f.label}</span>
@@ -596,7 +596,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
                       {schema.fields.map(f => (
                         <td key={f.id} className="p-5 font-mono text-[10px] text-slate-600 border-r border-slate-50 last:border-0">
                           {row[f.id] === undefined || row[f.id] === null ? (
-                            <span className="text-rose-300 text-[8px] font-black uppercase italic tracking-tighter">NULL</span>
+                            <span className="text-rose-300 text-[8px] font-medium uppercase italic tracking-tighter">NULL</span>
                           ) : (
                             <span className="truncate block max-w-[200px]">{String(row[f.id])}</span>
                           )}
