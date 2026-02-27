@@ -12,6 +12,8 @@ interface MappingInterfaceProps {
   isAutoMapping: boolean;
   onRemoveFile?: (fileName: string) => void;
   onSync: () => Promise<void>;
+  allMappings?: Record<string, FieldMapping[]>;
+  currentGroupName?: string;
 }
 
 const TRANSFORMATION_META: Record<TransformationType, { label: string; icon: string; color: string; bg: string; border: string }> = {
@@ -51,9 +53,11 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
   onAutoMap,
   isAutoMapping,
   onRemoveFile,
-  onSync
+  onSync,
+  allMappings = {},
+  currentGroupName = ''
 }) => {
-  const [activeTab, setActiveTab] = useState<'mapping' | 'preview'>('mapping');
+  const [activeTab, setActiveTab] = useState<'mapping' | 'preview' | 'summary'>('mapping');
   const [draggedHeader, setDraggedHeader] = useState<string | null>(null);
 
   const [sourceSearch, setSourceSearch] = useState('');
@@ -210,6 +214,12 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
           className={`flex-1 px-8 py-4 font-medium text-[10px] uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 ${activeTab === 'preview' ? 'bg-white shadow-lg text-blue-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
         >
           SQL Preview
+        </button>
+        <button
+          onClick={() => setActiveTab('summary')}
+          className={`flex-1 px-8 py-4 font-medium text-[10px] uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 ${activeTab === 'summary' ? 'bg-white shadow-lg text-emerald-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+        >
+          Object Summary
         </button>
         {activeTab === 'preview' && (
           <button
@@ -524,7 +534,7 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
               </div>
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'preview' ? (
           <div className="h-full overflow-auto p-8 bg-slate-50/30">
             {/* DUPLICATE CHECK BANNER */}
             {(() => {
@@ -608,7 +618,75 @@ export const MappingInterface: React.FC<MappingInterfaceProps> = ({
               </table>
             </div>
           </div>
-        )}
+        ) : activeTab === 'summary' ? (
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50 custom-scrollbar relative h-full">
+            <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-xl overflow-hidden relative">
+                <div className="absolute top-0 right-0 p-8 opacity-5">
+                  <span className="text-9xl">📑</span>
+                </div>
+                <h2 className="text-xl font-semibold text-slate-800 tracking-tight flex items-center gap-3 relative z-10">
+                  <span className="text-2xl">📋</span> {schema.name} Object Summary
+                </h2>
+                <p className="text-xs text-slate-500 mt-2 relative z-10">Overview of mapped fields and unmatched source columns for this specific object.</p>
+
+                <div className="mt-8 space-y-6 relative z-10">
+                  {mappings.filter(m => m.sourceHeader || m.transformations.length > 0).length === 0 ? (
+                    <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-100">
+                      <p className="text-xs text-slate-400 uppercase tracking-widest font-medium">No fields mapped yet.</p>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
+                      <h3 className="px-5 py-3 font-semibold text-xs text-slate-700 uppercase tracking-widest border-b border-slate-200 bg-white/50">{schema.table_name || schema.id}</h3>
+                      <div className="p-5">
+                        <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
+                          {mappings.filter(m => m.sourceHeader || m.transformations.length > 0).map(m => (
+                            <li key={m.targetFieldId} className="flex items-center gap-3 text-xs bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm">
+                              <span className="font-medium text-blue-600 truncate max-w-[150px]" title={m.sourceHeader || 'Transformed Value'}>
+                                {m.sourceHeader || (m.transformations[0]?.type === 'constant' ? `"${m.transformations[0].value}"` : 'Computed')}
+                              </span>
+                              <span className="text-slate-300">→</span>
+                              <span className="text-slate-700 font-mono text-[10px] truncate max-w-[150px]" title={m.targetFieldId}>{m.targetFieldId}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-8 p-6 bg-rose-50 rounded-2xl border border-rose-100/50 shadow-sm relative z-10">
+                  <h3 className="text-xs font-semibold text-rose-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <span className="text-rose-400">⚠️</span> Unmapped Source Columns
+                  </h3>
+                  <div className="text-xs text-slate-700">
+                    {(() => {
+                      const allMappedHeaders = new Set<string>();
+                      mappings.forEach((m: any) => {
+                        if (m.sourceHeader) allMappedHeaders.add(m.sourceHeader);
+                      });
+                      const unmapped = source.headers.filter(h => !allMappedHeaders.has(h));
+                      return unmapped.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {unmapped.map(h => (
+                            <span key={h} className="font-mono bg-white px-2 py-1 rounded-lg border border-rose-100 shadow-sm text-slate-500">
+                              {h}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-full font-medium shadow-sm border border-emerald-100">
+                          <span>✨</span> All source columns were successfully mapped!
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

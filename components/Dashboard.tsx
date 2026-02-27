@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { DataGroup, SavedConfiguration, SchemaType } from '../types';
 
 interface DashboardProps {
@@ -15,6 +15,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadConfig, onSelectSchema, onDelete, onExport, onCreateNew, onBack, currentSource }) => {
+  const [summaryModalConfig, setSummaryModalConfig] = useState<SavedConfiguration | null>(null);
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm">
@@ -77,34 +78,59 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
                     <p className="text-[9px] font-medium text-slate-300 uppercase tracking-widest">No Registry Configured</p>
                   </div>
                 ) : (
-                  groupConfigs.map(config => (
-                    <div
-                      key={config.id}
-                      onClick={() => onLoadConfig(config)}
-                      className="group/item flex items-center justify-between p-4 bg-slate-50 border border-transparent hover:border-blue-200 hover:bg-white rounded-2xl transition-all cursor-pointer shadow-sm hover:shadow-md"
-                    >
-                      <div className="flex flex-col truncate">
-                        <span className="text-[10px] font-medium text-slate-700 truncate group-hover/item:text-blue-600">{config.name}</span>
-                        <span className="text-[7px] font-medium text-slate-400 uppercase tracking-tighter mt-1">{Object.keys(config.objectMappings).length} Data Objects mapped</span>
-                      </div>
-                      <div className="flex items-center gap-2 transition-opacity">
-                        <button
-                          onClick={(e) => onExport(e, config)}
-                          className="p-2 text-slate-400 hover:text-emerald-500 transition-colors"
-                          title="Export XLS"
+                  groupConfigs.map(config => {
+                    const objectsMapped = Object.keys(config.objectMappings);
+
+                    return (
+                      <div key={config.id} className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden transition-all duration-300">
+                        <div
+                          className="group/item flex items-center justify-between p-4 hover:bg-slate-50 transition-colors"
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        </button>
-                        <button
-                          onClick={(e) => onDelete(e, config.id)}
-                          className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
-                          title="Purge Entry"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
+                          <div className="flex flex-col truncate">
+                            <span className="text-xs font-medium text-slate-800 flex items-center gap-2">
+                              {config.name}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onLoadConfig(config); }}
+                                className="text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded shadow-sm hover:bg-blue-600 hover:text-white transition-colors"
+                              >
+                                Edit / Run
+                              </button>
+                            </span>
+                            <span className="text-[9px] font-medium text-slate-500 uppercase tracking-widest mt-1">{objectsMapped.length} Data Objects mapped</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => onExport(e, config)}
+                              className="p-1.5 text-slate-400 hover:text-emerald-500 transition-colors"
+                              title="Export XLS"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(e, config.id);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"
+                              title="Purge Entry"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSummaryModalConfig(config);
+                              }}
+                              className={`p-1.5 transition-colors flex items-center gap-1 text-slate-400 hover:text-emerald-500`}
+                              title="Registry Summary"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
@@ -121,6 +147,54 @@ export const Dashboard: React.FC<DashboardProps> = ({ groups, configs, onLoadCon
           );
         })}
       </div>
+
+      {summaryModalConfig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50 shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-3">
+                  <span className="text-2xl">📋</span> Registry Summary
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">Overview of mappings for <span className="font-semibold text-slate-700">{summaryModalConfig.name}</span></p>
+              </div>
+              <button
+                onClick={() => setSummaryModalConfig(null)}
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-400 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.keys(summaryModalConfig.objectMappings).map(objId => {
+                  const validMappings = summaryModalConfig.objectMappings[objId].filter(m => m.sourceHeader || m.transformations.length > 0);
+                  if (validMappings.length === 0) return null;
+
+                  return (
+                    <div key={objId} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm break-inside-avoid">
+                      <h5 className="text-xs font-semibold text-slate-700 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
+                        <span className="text-blue-500">●</span> {objId}
+                      </h5>
+                      <ul className="space-y-2">
+                        {validMappings.map(m => (
+                          <li key={m.targetFieldId} className="flex items-center justify-between text-[10px] bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                            <span className="text-blue-600 truncate max-w-[140px] font-medium leading-tight" title={m.sourceHeader || 'Transformed Value'}>
+                              {m.sourceHeader || (m.transformations[0]?.type === 'constant' ? `"${m.transformations[0].value}"` : 'Computed')}
+                            </span>
+                            <span className="text-slate-300 mx-2 shrink-0">→</span>
+                            <span className="text-slate-700 font-mono truncate max-w-[140px] text-right leading-tight" title={m.targetFieldId}>{m.targetFieldId}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

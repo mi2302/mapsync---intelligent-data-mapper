@@ -447,6 +447,7 @@ const App: React.FC = () => {
     const configToSave: Omit<SavedConfiguration, 'id' | 'createdAt'> = {
       name: configName,
       groupId: currentGroup.id,
+      sourceHeaders: sourceData?.headers || [],
       objectMappings: groupMappings
     };
 
@@ -1500,6 +1501,8 @@ const App: React.FC = () => {
                       schema={selectedSchema}
                       source={sourceData}
                       mappings={allMappings[selectedSchema.id] || []}
+                      allMappings={allMappings}
+                      currentGroupName={dataGroups.find(g => g.objects.some(o => o.id === selectedSchema.id))?.name}
                       onUpdateMapping={(newMapping) => {
                         // SAVE TO MEMORY if explicit mapping
                         if (newMapping.sourceHeader) {
