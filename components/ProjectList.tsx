@@ -25,7 +25,9 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onMan
     }, []);
 
     const loadProjects = async () => {
-        const data = await apiService.fetchProjects();
+        const userEmail = localStorage.getItem('mapsync_user') || undefined;
+        const userRole = localStorage.getItem('mapsync_user_role') || undefined;
+        const data = await apiService.fetchProjects(userEmail, userRole);
         setProjects(data);
     };
 
@@ -72,7 +74,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onMan
         }
 
         const moduleIds = Array.from(selectedModuleIds) as number[];
-        const result = await apiService.createProject(trimmedName, newProjectDesc, moduleIds);
+        const userEmail = localStorage.getItem('mapsync_user') || undefined;
+        const result = await apiService.createProject(trimmedName, newProjectDesc, moduleIds, userEmail);
         if (result.success) {
             setShowCreate(false);
             setCreateStep(1);

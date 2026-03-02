@@ -221,9 +221,13 @@ export const apiService = {
   },
 
   // --- PROJECT API ---
-  fetchProjects: async (): Promise<any[]> => {
+  fetchProjects: async (email?: string, role?: string): Promise<any[]> => {
     try {
-      const response = await fetch(`${API_URL}/projects`);
+      const qs = new URLSearchParams();
+      if (email) qs.append('email', email);
+      if (role) qs.append('role', role);
+      const url = `${API_URL}/projects` + (qs.toString() ? '?' + qs.toString() : '');
+      const response = await fetch(url);
       if (!response.ok) return [];
       return await response.json();
     } catch (error) {
@@ -232,12 +236,12 @@ export const apiService = {
     }
   },
 
-  createProject: async (name: string, description: string, moduleIds?: number[]): Promise<{ success: boolean; projectId?: number; error?: string }> => {
+  createProject: async (name: string, description: string, moduleIds?: number[], email?: string): Promise<{ success: boolean; projectId?: number; error?: string }> => {
     try {
       const response = await fetch(`${API_URL}/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description, moduleIds })
+        body: JSON.stringify({ name, description, moduleIds, email })
       });
       return await response.json();
     } catch (error: any) {

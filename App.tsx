@@ -17,6 +17,7 @@ import { mergeRows } from './utils/dataMerger';
 import { ProjectList } from './components/ProjectList';
 import { ProjectDetail } from './components/ProjectDetail';
 import ChatBot from './components/ChatBot';
+import { Login } from './components/Login';
 
 const inferType = (values: any[]): DataType => {
   const cleanValues = values.filter(v => v !== undefined && v !== null && v !== '');
@@ -36,6 +37,9 @@ const App: React.FC = () => {
   const [view, setView] = useState<'projects' | 'project_detail' | 'mapping' | 'custom_module' | 'source_dashboard'>('projects');
 
   // Context State
+  const [currentUser, setCurrentUser] = useState<string | null>(() => {
+    return localStorage.getItem('mapsync_user') || null;
+  });
   const [currentProject, setCurrentProject] = useState<any>(null);
   const [currentSource, setCurrentSource] = useState<any>(null);
 

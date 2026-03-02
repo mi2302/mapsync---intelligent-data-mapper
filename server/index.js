@@ -4,6 +4,7 @@ const cors = require('cors');
 const oracledb = require('oracledb');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 
 // Configure oracledb to fetch CLOBs as strings
 oracledb.fetchAsString = [oracledb.CLOB];
@@ -101,6 +102,68 @@ initializeDatabase();
 // Routes
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', datetime: new Date().toISOString() });
+});
+
+// User Registration
+app.post('/api/signup', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+
+    let connection;
+    try {
+        const hash = await bcrypt.hash(password, 10);
+        const pool = await getPool();
+        connection = await pool.getConnection();
+        await connection.execute(
+            `INSERT INTO MSAI_USERS (EMAIL, PASSWORD_HASH) VALUES (:email, :hash)`,
+            { email, hash },
+            { autoCommit: true }
+        );
+        res.json({ success: true, message: 'Account created successfully' });
+    } catch (err) {
+        if (err.message.includes('ORA-00001')) {
+            return res.status(400).json({ error: 'Email already exists' });
+        }
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) {
+            try { await connection.close(); } catch (err) { console.error(err); }
+        }
+    }
+});
+
+// User Login
+app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
+        const result = await connection.execute(
+            `SELECT PASSWORD_HASH, ROLE FROM MSAI_USERS WHERE EMAIL = :email`,
+            { email },
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        const match = await bcrypt.compare(password, result.rows[0].PASSWORD_HASH);
+        if (!match) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        res.json({ success: true, email: email, role: result.rows[0].ROLE || 'USER', token: 'fake-refresh-token' }); // In a real app, generate JWT here
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) {
+            try { await connection.close(); } catch (err) { console.error(err); }
+        }
+    }
 });
 
 app.get('/api/relationships', async (req, res) => {
@@ -751,18 +814,32 @@ app.get('/api/modules/:moduleName/registries', async (req, res) => {
 
 // 1. Get All Projects
 app.get('/api/projects', async (req, res) => {
+    const { email, role } = req.query;
     let connection;
     try {
         const pool = await getPool();
         connection = await pool.getConnection();
-        const result = await connection.execute(
-            `SELECT p.*,
-                    (SELECT COUNT(*) FROM MSAI_PROJECT_MODULES pm WHERE pm.PROJECT_ID = p.PROJECT_ID) as MODULE_COUNT
-             FROM MSAI_PROJECTS p 
-             ORDER BY p.CREATED_AT DESC`,
-            [],
-            { outFormat: oracledb.OUT_FORMAT_OBJECT }
-        );
+
+        const baseQuery = `
+            SELECT p.*,
+                   (SELECT COUNT(*) FROM MSAI_PROJECT_MODULES pm WHERE pm.PROJECT_ID = p.PROJECT_ID) as MODULE_COUNT
+            FROM MSAI_PROJECTS p
+        `;
+
+        let result;
+        if (role === 'ADMIN') {
+            result = await connection.execute(
+                `${baseQuery} ORDER BY p.CREATED_AT DESC`,
+                [],
+                { outFormat: oracledb.OUT_FORMAT_OBJECT }
+            );
+        } else {
+            result = await connection.execute(
+                `${baseQuery} WHERE p.CREATED_BY = :email ORDER BY p.CREATED_AT DESC`,
+                { email: email || '' },
+                { outFormat: oracledb.OUT_FORMAT_OBJECT }
+            );
+        }
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -773,19 +850,20 @@ app.get('/api/projects', async (req, res) => {
 
 // 2. Create Project
 app.post('/api/projects', async (req, res) => {
-    const { name, description, moduleIds } = req.body;
-    console.log('[DEBUG] Create Project Request:', { name, description, moduleIds });
+    const { name, description, moduleIds, email } = req.body;
+    console.log('[DEBUG] Create Project Request:', { name, description, moduleIds, email });
     let connection;
     try {
         const pool = await getPool();
         connection = await pool.getConnection();
 
         const result = await connection.execute(
-            `INSERT INTO MSAI_PROJECTS (PROJECT_ID, PROJECT_NAME, DESCRIPTION) 
-             VALUES (MSAI_PROJECT_SEQ.NEXTVAL, :p_name, :p_desc) RETURNING PROJECT_ID INTO :p_id`,
+            `INSERT INTO MSAI_PROJECTS (PROJECT_ID, PROJECT_NAME, DESCRIPTION, CREATED_BY) 
+             VALUES (MSAI_PROJECT_SEQ.NEXTVAL, :p_name, :p_desc, :p_email) RETURNING PROJECT_ID INTO :p_id`,
             {
                 p_name: name,
                 p_desc: description,
+                p_email: email || null,
                 p_id: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT }
             },
             { autoCommit: false }
