@@ -298,6 +298,32 @@ export const apiService = {
     }
   },
 
+  copyProject: async (projectId: string, name: string, description: string, email: string | undefined, copyModules: boolean, selectedSourceIds: number[]): Promise<any> => {
+    try {
+      const response = await fetch(`${API_URL}/projects/${projectId}/copy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, description, email, copyModules, selectedSourceIds })
+      });
+      return await response.json();
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  copySource: async (projectId: string, sourceId: string, name: string): Promise<any> => {
+    try {
+      const response = await fetch(`${API_URL}/projects/${projectId}/sources/${sourceId}/copy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      return await response.json();
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  },
+
   fetchSourceModules: async (sourceId: string): Promise<{ projectId: string; selectedModuleIds: number[] } | null> => {
     try {
       const response = await fetch(`${API_URL}/sources/${sourceId}/modules`);

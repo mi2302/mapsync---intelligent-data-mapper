@@ -16,22 +16,7 @@ const AuthWrapper = () => {
     }} />;
   }
 
-  return (
-    <>
-      <App />
-      <button
-        onClick={() => {
-          localStorage.removeItem('mapsync_user');
-          localStorage.removeItem('mapsync_user_role');
-          setCurrentUser(null);
-          setCurrentRole(null);
-        }}
-        className="fixed bottom-4 left-4 z-50 bg-slate-900/50 hover:bg-slate-900 backdrop-blur text-white/50 hover:text-white px-4 py-2 rounded-full text-[10px] uppercase font-semibold tracking-widest transition-all shadow-lg border border-white/10"
-      >
-        Log out
-      </button>
-    </>
-  );
+  return <App />;
 };
 
 const rootElement = document.getElementById('root');

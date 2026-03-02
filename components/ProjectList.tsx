@@ -19,6 +19,14 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onMan
 
     const [editingProjectModules, setEditingProjectModules] = useState<any | null>(null);
 
+    const [projectToDuplicate, setProjectToDuplicate] = useState<any | null>(null);
+    const [dupName, setDupName] = useState('');
+    const [dupDesc, setDupDesc] = useState('');
+    const [dupCopyModules, setDupCopyModules] = useState(true);
+    const [dupProjectSources, setDupProjectSources] = useState<any[]>([]);
+    const [dupSelectedSources, setDupSelectedSources] = useState<Set<number>>(new Set());
+    const [isDuplicating, setIsDuplicating] = useState(false);
+
     useEffect(() => {
         loadProjects();
         loadCatalog();
@@ -106,6 +114,57 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onMan
         if (next.has(id)) next.delete(id);
         else next.add(id);
         setSelectedModuleIds(next);
+    };
+
+    const startDuplicateProject = async (project: any) => {
+        setProjectToDuplicate(project);
+        setDupName(`${project.PROJECT_NAME} (Copy)`);
+        setDupDesc(project.DESCRIPTION || '');
+        setDupCopyModules(true);
+        const sources = await apiService.fetchProjectSources(project.PROJECT_ID);
+        setDupProjectSources(sources);
+        const allIds = new Set<number>();
+        sources.forEach(s => allIds.add(s.SOURCE_ID));
+        setDupSelectedSources(allIds);
+    };
+
+    const handleDuplicateSubmit = async () => {
+        const trimmedDupName = dupName.trim();
+        if (!projectToDuplicate || !trimmedDupName) return;
+
+        const isDuplicate = projects.some(p => p.PROJECT_NAME.trim().toLowerCase() === trimmedDupName.toLowerCase());
+        if (isDuplicate) {
+            alert(`A project with the name "${trimmedDupName}" already exists. Please choose a unique name.`);
+            return;
+        }
+
+        setIsDuplicating(true);
+        const srcArray = Array.from(dupSelectedSources) as number[];
+        const userEmail = localStorage.getItem('mapsync_user') || undefined;
+
+        const result = await apiService.copyProject(
+            projectToDuplicate.PROJECT_ID,
+            trimmedDupName,
+            dupDesc,
+            userEmail,
+            dupCopyModules,
+            srcArray
+        );
+
+        setIsDuplicating(false);
+        if (result.success) {
+            setProjectToDuplicate(null);
+            loadProjects();
+        } else {
+            alert(`Duplicate Error: ${result.error}`);
+        }
+    };
+
+    const toggleDupSource = (id: number) => {
+        const next = new Set(dupSelectedSources);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setDupSelectedSources(next);
     };
 
     return (
@@ -330,6 +389,98 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onMan
                 </div>
             )}
 
+            {projectToDuplicate && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-2xl animate-in zoom-in duration-300">
+                        <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-100">
+                            <div>
+                                <h2 className="text-lg font-medium text-slate-900 uppercase tracking-tight">Duplicate Project</h2>
+                                <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mt-1">
+                                    Copying <span className="text-blue-600">{projectToDuplicate.PROJECT_NAME}</span>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setProjectToDuplicate(null)}
+                                className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-2 scrollbar-hide">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-medium text-slate-400 uppercase tracking-widest">New Project Name</label>
+                                <input
+                                    type="text"
+                                    value={dupName}
+                                    onChange={e => setDupName(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none font-medium text-slate-700"
+                                />
+                            </div>
+
+                            <label className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-slate-100 rounded-2xl cursor-pointer transition-colors border border-slate-200">
+                                <input
+                                    type="checkbox"
+                                    checked={dupCopyModules}
+                                    onChange={e => setDupCopyModules(e.target.checked)}
+                                    className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                />
+                                <div>
+                                    <span className="block text-sm font-medium text-slate-700">Copy Module Structures (Framework)</span>
+                                    <span className="block text-xs text-slate-500 mt-0.5">Duplicates empty scopes and tables defined in architect mode.</span>
+                                </div>
+                            </label>
+
+                            {dupProjectSources.length > 0 && (
+                                <div className="space-y-3 pt-4 border-t border-slate-100">
+                                    <h3 className="text-xs font-medium text-slate-400 uppercase tracking-widest">Data Sources to Copy:</h3>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {dupProjectSources.map(s => (
+                                            <label key={s.SOURCE_ID} className="flex items-center gap-3 p-3 bg-white hover:bg-slate-50 rounded-xl cursor-pointer transition-colors border border-slate-200">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={dupSelectedSources.has(s.SOURCE_ID)}
+                                                    onChange={() => toggleDupSource(s.SOURCE_ID)}
+                                                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                />
+                                                <div className="truncate">
+                                                    <span className="block text-sm font-medium text-slate-700 truncate">{s.SOURCE_NAME}</span>
+                                                    <span className="block text-[10px] text-slate-500 mt-0.5 uppercase tracking-widest">Includes existing AI mapping data</span>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-4 mt-10 pt-6 border-t border-slate-100">
+                            <button
+                                onClick={() => setProjectToDuplicate(null)}
+                                className="px-8 py-3 bg-slate-100 text-slate-500 rounded-2xl font-medium text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <div className="flex-1"></div>
+                            <button
+                                onClick={handleDuplicateSubmit}
+                                disabled={isDuplicating || !dupName.trim()}
+                                className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-medium text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isDuplicating ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
+                                        Duplicating...
+                                    </>
+                                ) : (
+                                    'Create Duplicate'
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {projects.map(proj => (
                     <div
@@ -349,9 +500,20 @@ export const ProjectList: React.FC<ProjectListProps> = ({ onSelectProject, onMan
                                 <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-brand-700 bg-brand-100/50 backdrop-blur-md border border-brand-200/50 px-3 py-1.5 rounded-xl shadow-sm">
                                     Workspace
                                 </span>
-                                <span className="text-[9px] font-medium text-slate-400 uppercase tracking-widest bg-white/50 px-2.5 py-1 rounded-lg">
-                                    {new Date(proj.CREATED_AT).toLocaleDateString()}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); startDuplicateProject(proj); }}
+                                        className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded transition-colors"
+                                        title="Duplicate Project"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                    </button>
+                                    <span className="text-[9px] font-medium text-slate-400 uppercase tracking-widest bg-white/50 px-2.5 py-1 rounded-lg">
+                                        {new Date(proj.CREATED_AT).toLocaleDateString()}
+                                    </span>
+                                </div>
                             </div>
 
                             <h3 className="text-lg font-medium text-slate-800 group-hover:text-brand-600 transition-colors duration-300 mb-3 leading-tight tracking-tight drop-shadow-sm">{proj.PROJECT_NAME}</h3>

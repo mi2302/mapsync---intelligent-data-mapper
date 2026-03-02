@@ -25,6 +25,11 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
     const [newSourceDesc, setNewSourceDesc] = useState('');
     const [newSourceSelectedModuleIds, setNewSourceSelectedModuleIds] = useState<Set<number>>(new Set());
 
+    // Source Duplication State
+    const [sourceToDuplicate, setSourceToDuplicate] = useState<any | null>(null);
+    const [dupSourceName, setDupSourceName] = useState('');
+    const [isDuplicatingSource, setIsDuplicatingSource] = useState(false);
+
     // Module Editing State
     const [isEditingModules, setIsEditingModules] = useState(initialEditingSource !== null);
     const [editingSource, setEditingSource] = useState<any>(initialEditingSource); // For source-level modules
@@ -107,6 +112,33 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
             loadData();
         } else {
             alert(`Error: ${result.error}`);
+        }
+    };
+
+    const startDuplicateSource = (e: React.MouseEvent, source: any) => {
+        e.stopPropagation();
+        setSourceToDuplicate(source);
+        setDupSourceName(`${source.SOURCE_NAME} (Copy)`);
+    };
+
+    const handleDuplicateSourceSubmit = async () => {
+        const trimmedDupName = dupSourceName.trim();
+        if (!sourceToDuplicate || !trimmedDupName) return;
+
+        const isDuplicate = sources.some(s => s.SOURCE_NAME.trim().toLowerCase() === trimmedDupName.toLowerCase());
+        if (isDuplicate) {
+            alert(`A source with the name "${trimmedDupName}" already exists in this project.`);
+            return;
+        }
+
+        setIsDuplicatingSource(true);
+        const result = await apiService.copySource(project.PROJECT_ID, sourceToDuplicate.SOURCE_ID, trimmedDupName);
+        setIsDuplicatingSource(false);
+        if (result.success) {
+            setSourceToDuplicate(null);
+            loadData();
+        } else {
+            alert(`Error duplicating source: ${result.error}`);
         }
     };
 
@@ -313,9 +345,20 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                                             <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-brand-700 bg-brand-100/50 backdrop-blur-md border border-brand-200/50 px-3 py-1.5 rounded-xl shadow-sm">
                                                 Source
                                             </span>
-                                            <span className="text-[9px] font-medium text-slate-400 uppercase tracking-widest bg-white/50 px-2.5 py-1 rounded-lg">
-                                                {new Date(src.CREATED_AT).toLocaleDateString()}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={(e) => startDuplicateSource(e, src)}
+                                                    className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded transition-colors z-20"
+                                                    title="Duplicate Source"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                    </svg>
+                                                </button>
+                                                <span className="text-[9px] font-medium text-slate-400 uppercase tracking-widest bg-white/50 px-2.5 py-1 rounded-lg">
+                                                    {new Date(src.CREATED_AT).toLocaleDateString()}
+                                                </span>
+                                            </div>
                                         </div>
 
                                         <h3 className="text-lg font-medium text-slate-800 group-hover:text-brand-600 transition-colors duration-300 mb-3 leading-tight tracking-tight drop-shadow-sm">{src.SOURCE_NAME}</h3>
@@ -358,6 +401,63 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, onBack, o
                     </div>
                 )}
             </div>
+
+            {sourceToDuplicate && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-lg animate-in zoom-in duration-300">
+                        <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-100">
+                            <div>
+                                <h2 className="text-lg font-medium text-slate-900 uppercase tracking-tight">Duplicate Source</h2>
+                                <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mt-1">
+                                    Copying mapped endpoints from <span className="text-blue-600">{sourceToDuplicate.SOURCE_NAME}</span>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setSourceToDuplicate(null)}
+                                className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-medium text-slate-400 uppercase tracking-widest">New Source Name</label>
+                                <input
+                                    type="text"
+                                    value={dupSourceName}
+                                    onChange={e => setDupSourceName(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none font-medium text-slate-700"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 mt-10 pt-6 border-t border-slate-100">
+                            <button
+                                onClick={() => setSourceToDuplicate(null)}
+                                className="px-8 py-3 bg-slate-100 text-slate-500 rounded-2xl font-medium text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <div className="flex-1"></div>
+                            <button
+                                onClick={handleDuplicateSourceSubmit}
+                                disabled={isDuplicatingSource || !dupSourceName.trim()}
+                                className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-medium text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isDuplicatingSource ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
+                                        Duplicating...
+                                    </>
+                                ) : (
+                                    'Create Duplicate'
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showCreateSource && (
                 <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">

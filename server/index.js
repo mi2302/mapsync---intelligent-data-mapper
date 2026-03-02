@@ -827,7 +827,7 @@ app.get('/api/projects', async (req, res) => {
         `;
 
         let result;
-        if (role === 'ADMIN') {
+        if (role && role.toUpperCase() === 'ADMIN') {
             result = await connection.execute(
                 `${baseQuery} ORDER BY p.CREATED_AT DESC`,
                 [],
@@ -985,7 +985,154 @@ app.post('/api/projects/:id/modules', async (req, res) => {
     }
 });
 
-// 5. Get Sources in Project
+// 5. Duplicate Project
+app.post('/api/projects/:id/copy', async (req, res) => {
+    const { id } = req.params;
+    const { name, description, email, copyModules, selectedSourceIds } = req.body;
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
+
+        // Create Project
+        const pResult = await connection.execute(
+            `INSERT INTO MSAI_PROJECTS (PROJECT_ID, PROJECT_NAME, DESCRIPTION, CREATED_BY) 
+             VALUES (MSAI_PROJECT_SEQ.NEXTVAL, :pname, :pdesc, :pemail) RETURNING PROJECT_ID INTO :pid`,
+            { pname: name, pdesc: description, pemail: email || null, pid: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT } },
+            { autoCommit: false }
+        );
+        const newProjectId = pResult.outBinds.pid[0];
+
+        if (copyModules) {
+            await connection.execute(
+                `INSERT INTO MSAI_PROJECT_MODULES (PROJECT_ID, MODULE_ID)
+                 SELECT :newId, MODULE_ID FROM MSAI_PROJECT_MODULES WHERE PROJECT_ID = :oldId`,
+                { newId: newProjectId, oldId: id }, { autoCommit: false }
+            );
+        }
+
+        if (selectedSourceIds && selectedSourceIds.length > 0) {
+            for (const sourceId of selectedSourceIds) {
+                const sInfo = await connection.execute(`SELECT SOURCE_NAME, DESCRIPTION FROM MSAI_SOURCES WHERE SOURCE_ID = :sid`, { sid: sourceId }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+                if (sInfo.rows.length === 0) continue;
+
+                const sResult = await connection.execute(
+                    `INSERT INTO MSAI_SOURCES (SOURCE_ID, PROJECT_ID, SOURCE_NAME, DESCRIPTION)
+                     VALUES (MSAI_SOURCE_SEQ.NEXTVAL, :pid, :sname, :sdesc) RETURNING SOURCE_ID INTO :sid`,
+                    { pid: newProjectId, sname: sInfo.rows[0].SOURCE_NAME, sdesc: sInfo.rows[0].DESCRIPTION, sid: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT } },
+                    { autoCommit: false }
+                );
+                const newSourceId = sResult.outBinds.sid[0];
+
+                await connection.execute(
+                    `INSERT INTO MSAI_SOURCE_MODULES (SOURCE_ID, MODULE_ID)
+                     SELECT :newId, MODULE_ID FROM MSAI_SOURCE_MODULES WHERE SOURCE_ID = :oldId`,
+                    { newId: newSourceId, oldId: sourceId }, { autoCommit: false }
+                );
+
+                const regs = await connection.execute(
+                    `SELECT REGISTRY_ID, REGISTRY_NAME, MODULE_NAME FROM MSAI_REGISTRY WHERE SOURCE_ID = :oldId`,
+                    { oldId: sourceId }, { outFormat: oracledb.OUT_FORMAT_OBJECT }
+                );
+                for (const reg of regs.rows) {
+                    const rResult = await connection.execute(
+                        `INSERT INTO MSAI_REGISTRY (REGISTRY_ID, REGISTRY_NAME, MODULE_NAME, SOURCE_ID)
+                         VALUES (MSAI_REGISTRY_SEQ.NEXTVAL, :rname, :mname, :sid) RETURNING REGISTRY_ID INTO :rid`,
+                        { rname: reg.REGISTRY_NAME, mname: reg.MODULE_NAME, sid: newSourceId, rid: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT } },
+                        { autoCommit: false }
+                    );
+                    const newRegId = rResult.outBinds.rid[0];
+
+                    await connection.execute(
+                        `INSERT INTO MSAI_REGISTRY_MODULES (LINK_ID, REGISTRY_ID, MODULE_ID)
+                         SELECT MSAI_LINK_SEQ.NEXTVAL, :newRegId, MODULE_ID FROM MSAI_REGISTRY_MODULES WHERE REGISTRY_ID = :oldRegId`,
+                        { newRegId: newRegId, oldRegId: reg.REGISTRY_ID }, { autoCommit: false }
+                    );
+
+                    await connection.execute(
+                        `INSERT INTO MSAI_MAPPING_METADATA (MAPPING_ID, REGISTRY_ID, REGISTRY_NAME, OBJECT_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC)
+                         SELECT MSAI_MAPPING_SEQ.NEXTVAL, :newRegId, :rname, OBJECT_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC
+                         FROM MSAI_MAPPING_METADATA WHERE REGISTRY_ID = :oldRegId`,
+                        { newRegId: newRegId, rname: reg.REGISTRY_NAME, oldRegId: reg.REGISTRY_ID }, { autoCommit: false }
+                    );
+                }
+            }
+        }
+        await connection.commit();
+        res.json({ success: true, newProjectId });
+    } catch (err) {
+        if (connection) await connection.rollback();
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
+
+// 6. Duplicate Source
+app.post('/api/projects/:id/sources/:sourceId/copy', async (req, res) => {
+    const { id, sourceId } = req.params;
+    const { name } = req.body;
+    let connection;
+    try {
+        const pool = await getPool();
+        connection = await pool.getConnection();
+
+        const sInfo = await connection.execute(`SELECT SOURCE_NAME, DESCRIPTION FROM MSAI_SOURCES WHERE SOURCE_ID = :sid`, { sid: sourceId }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+        if (sInfo.rows.length === 0) return res.status(404).json({ error: "Source not found" });
+
+        const newName = name || `${sInfo.rows[0].SOURCE_NAME} (Copy)`;
+
+        const sResult = await connection.execute(
+            `INSERT INTO MSAI_SOURCES (SOURCE_ID, PROJECT_ID, SOURCE_NAME, DESCRIPTION)
+             VALUES (MSAI_SOURCE_SEQ.NEXTVAL, :pid, :sname, :sdesc) RETURNING SOURCE_ID INTO :sid`,
+            { pid: id, sname: newName, sdesc: sInfo.rows[0].DESCRIPTION, sid: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT } },
+            { autoCommit: false }
+        );
+        const newSourceId = sResult.outBinds.sid[0];
+
+        await connection.execute(
+            `INSERT INTO MSAI_SOURCE_MODULES (SOURCE_ID, MODULE_ID)
+             SELECT :newId, MODULE_ID FROM MSAI_SOURCE_MODULES WHERE SOURCE_ID = :oldId`,
+            { newId: newSourceId, oldId: sourceId }, { autoCommit: false }
+        );
+
+        const regs = await connection.execute(
+            `SELECT REGISTRY_ID, REGISTRY_NAME, MODULE_NAME FROM MSAI_REGISTRY WHERE SOURCE_ID = :oldId`,
+            { oldId: sourceId }, { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+        for (const reg of regs.rows) {
+            const rResult = await connection.execute(
+                `INSERT INTO MSAI_REGISTRY (REGISTRY_ID, REGISTRY_NAME, MODULE_NAME, SOURCE_ID)
+                 VALUES (MSAI_REGISTRY_SEQ.NEXTVAL, :rname, :mname, :sid) RETURNING REGISTRY_ID INTO :rid`,
+                { rname: reg.REGISTRY_NAME, mname: reg.MODULE_NAME, sid: newSourceId, rid: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT } },
+                { autoCommit: false }
+            );
+            const newRegId = rResult.outBinds.rid[0];
+
+            await connection.execute(
+                `INSERT INTO MSAI_REGISTRY_MODULES (LINK_ID, REGISTRY_ID, MODULE_ID)
+                 SELECT MSAI_LINK_SEQ.NEXTVAL, :newRegId, MODULE_ID FROM MSAI_REGISTRY_MODULES WHERE REGISTRY_ID = :oldRegId`,
+                { newRegId: newRegId, oldRegId: reg.REGISTRY_ID }, { autoCommit: false }
+            );
+
+            await connection.execute(
+                `INSERT INTO MSAI_MAPPING_METADATA (MAPPING_ID, REGISTRY_ID, REGISTRY_NAME, OBJECT_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC)
+                 SELECT MSAI_MAPPING_SEQ.NEXTVAL, :newRegId, :rname, OBJECT_NAME, SOURCE_ATTRIBUTE_HEADER, MAPPING_ATTRIBUTE_COLUMN, ADDITION_LOGIC
+                 FROM MSAI_MAPPING_METADATA WHERE REGISTRY_ID = :oldRegId`,
+                { newRegId: newRegId, rname: reg.REGISTRY_NAME, oldRegId: reg.REGISTRY_ID }, { autoCommit: false }
+            );
+        }
+        await connection.commit();
+        res.json({ success: true, sourceId: newSourceId });
+    } catch (err) {
+        if (connection) await connection.rollback();
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (connection) await connection.close();
+    }
+});
+
+// 7. Get Sources in Project
 app.get('/api/projects/:id/sources', async (req, res) => {
     const { id } = req.params;
     let connection;
@@ -1010,7 +1157,7 @@ app.get('/api/projects/:id/sources', async (req, res) => {
     }
 });
 
-// 6. Create Source in Project
+// 8. Create Source in Project
 app.post('/api/projects/:id/sources', async (req, res) => {
     const { id } = req.params;
     const { name, description, moduleIds } = req.body;

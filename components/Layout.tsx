@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -7,6 +7,36 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, onGoHome }) => {
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setCurrentUser(localStorage.getItem('mapsync_user'));
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+
+    if (showUserMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showUserMenu]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('mapsync_user');
+    localStorage.removeItem('mapsync_user_role');
+    window.location.reload();
+  };
+
+  const initials = currentUser ? currentUser.substring(0, 2).toUpperCase() : 'AD';
+
   return (
     <div className="min-h-screen flex flex-col relative bg-slate-50 text-slate-900 font-sans selection:bg-brand-500 selection:text-white">
       {/* Stunning Premium Background Mesh */}
@@ -35,15 +65,40 @@ export const Layout: React.FC<LayoutProps> = ({ children, onGoHome }) => {
               <span className="text-[8px] font-medium text-slate-300 uppercase tracking-widest mt-1">Intelligent Relational Mapper</span>
             </div>
           </div>
-          <nav className="flex items-center gap-8">
+          <nav className="flex items-center gap-8 relative">
             <button
               onClick={onGoHome}
               className="text-[10px] font-medium text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors"
             >
               Dashboard
             </button>
-            <div className="h-10 w-10 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 font-medium text-[10px] shadow-sm">
-              AD
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="h-10 w-10 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 font-medium text-xs shadow-sm hover:border-blue-400 hover:text-blue-600 transition-all focus:outline-none"
+              >
+                {initials}
+              </button>
+
+              {showUserMenu && (
+                <div className="absolute right-0 mt-3 w-48 bg-white rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden animate-in slide-in-from-top-2 duration-200 z-50">
+                  <div className="p-4 border-b border-slate-50 bg-slate-50/50">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Signed in as</p>
+                    <p className="text-xs font-medium text-slate-700 truncate mt-1">{currentUser}</p>
+                  </div>
+                  <div className="p-2">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-medium text-rose-500 hover:bg-rose-50 transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Log Out
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </nav>
         </header>
